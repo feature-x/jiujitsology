@@ -3,7 +3,7 @@ services:
     name: agile-flow-starter
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build && cp -r .next/static .next/standalone/.next/static
+    buildCommand: npm install && npm run build && cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/
     startCommand: node .next/standalone/server.js
     healthCheckPath: /api/health
     previewsEnabled: true
@@ -11,7 +11,7 @@ services:
       - key: SENTRY_DSN
         sync: false
       - key: NODE_VERSION
-        value: "20"
+        value: "22"
       - key: GITHUB_TOKEN
         sync: false
       - key: GITHUB_REPOSITORY
