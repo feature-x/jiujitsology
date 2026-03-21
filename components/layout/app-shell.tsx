@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { createBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
@@ -41,6 +42,14 @@ function NavLinks({ onClick }: { onClick?: () => void }) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+
+  async function handleLogout() {
+    const supabase = createBrowserClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -54,6 +63,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <nav className="hidden md:flex items-center gap-6">
             <NavLinks />
           </nav>
+
+          {/* Logout button (desktop) */}
+          <div className="ml-auto hidden md:block">
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              Log out
+            </Button>
+          </div>
 
           {/* Mobile nav */}
           <div className="ml-auto md:hidden">
@@ -80,6 +96,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <SheetContent side="right" className="w-64">
                 <nav className="flex flex-col gap-4 mt-6">
                   <NavLinks onClick={() => setOpen(false)} />
+                  <Separator />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start"
+                    onClick={() => {
+                      setOpen(false);
+                      handleLogout();
+                    }}
+                  >
+                    Log out
+                  </Button>
                 </nav>
               </SheetContent>
             </Sheet>
