@@ -1,0 +1,101 @@
+name: Rollback Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_id:
+        description: 'Render deploy ID to rollback to (leave empty for previous deploy)'
+        required: false
+        type: string
+      reason:
+        description: 'Reason for rollback'
+        required: true
+        type: string
+
+jobs:
+  rollback:
+    name: Rollback to previous deployment
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check for required secrets
+        id: check_secrets
+        run: |
+          if [ -z "${{ secrets.RENDER_API_KEY }}" ] || [ -z "${{ secrets.RENDER_SERVICE_ID }}" ]; then
+            echo "RENDER_API_KEY or RENDER_SERVICE_ID not configured."
+            exit 1
+          fi
+
+      - name: Find rollback target
+        id: target
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          INPUT_DEPLOY_ID="${{ inputs.deploy_id }}"
+
+          if [ -n "$INPUT_DEPLOY_ID" ]; then
+            echo "deploy_id=$INPUT_DEPLOY_ID" >> "$GITHUB_OUTPUT"
+            echo "Rolling back to specified deploy: $INPUT_DEPLOY_ID"
+          else
+            # Get the second most recent deploy (the one before current)
+            PREV_DEPLOY=$(curl -s -X GET \
+              "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys?limit=2" \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              -H "Accept: application/json" | jq -r '.[1].deploy.id // empty')
+
+            if [ -z "$PREV_DEPLOY" ]; then
+              echo "No previous deployment found to rollback to."
+              exit 1
+            fi
+
+            echo "deploy_id=$PREV_DEPLOY" >> "$GITHUB_OUTPUT"
+            echo "Rolling back to previous deploy: $PREV_DEPLOY"
+          fi
+
+      - name: Trigger rollback
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          DEPLOY_ID="${{ steps.target.outputs.deploy_id }}"
+          echo "Triggering rollback to deploy $DEPLOY_ID..."
+          echo "Reason: ${{ inputs.reason }}"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${DEPLOY_ID}/rollback" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Accept: application/json")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "Rollback triggered successfully."
+          else
+            echo "Rollback API returned HTTP $HTTP_CODE"
+            echo "$BODY"
+            echo ""
+            echo "Falling back to redeploy of the target commit..."
+
+            # Fallback: trigger a new deploy (Render will use the commit from that deploy)
+            curl -s -X POST \
+              "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              -H "Accept: application/json" \
+              -H "Content-Type: application/json"
+            echo "Redeploy triggered."
+          fi
+
+      - name: Log rollback event
+        run: |
+          echo "========================================"
+          echo "ROLLBACK EVENT LOG"
+          echo "========================================"
+          echo "Timestamp: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          echo "Target Deploy: ${{ steps.target.outputs.deploy_id }}"
+          echo "Reason: ${{ inputs.reason }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "========================================"

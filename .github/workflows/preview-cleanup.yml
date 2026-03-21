@@ -1,0 +1,48 @@
+name: Preview Cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    name: Cleanup Preview Resources
+    if: github.repository != 'vibeacademy/agile-flow'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Supabase CLI
+        if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' }}
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Delete Supabase branch
+        if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_REF }}
+        # Don't fail the workflow if branch doesn't exist
+        continue-on-error: true
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "Attempting to delete Supabase branch: $BRANCH_NAME"
+
+          if supabase --experimental branches delete "$BRANCH_NAME" --yes 2>/dev/null; then
+            echo "Successfully deleted Supabase branch: $BRANCH_NAME"
+          else
+            echo "No Supabase branch found to delete (branch may not exist or GitHub integration handles cleanup)"
+          fi
+
+      - name: Log cleanup
+        run: |
+          echo "========================================"
+          echo "  Preview Cleanup"
+          echo "========================================"
+          echo ""
+          echo "PR: #${{ github.event.number }}"
+          echo "Branch: ${{ github.head_ref }}"
+          echo "Merged: ${{ github.event.pull_request.merged }}"
+          echo ""
+          echo "Render preview environments are cleaned up"
+          echo "automatically when the PR is closed."
+          echo "========================================"
