@@ -39,8 +39,7 @@ export default function SignupPage() {
       return;
     }
 
-    router.push("/");
-    router.refresh();
+    router.push(`/check-email?email=${encodeURIComponent(email)}`);
   }
 
   return (
