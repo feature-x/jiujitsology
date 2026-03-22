@@ -46,9 +46,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Log in</CardTitle>
+          <CardTitle className="text-2xl">Welcome to Jiujitsology</CardTitle>
           <CardDescription>
-            Enter your email and we&apos;ll send you a magic link.
+            Enter your email to sign in or create an account. We&apos;ll
+            send you a magic link — no password needed.
           </CardDescription>
         </CardHeader>
         <CardContent>
