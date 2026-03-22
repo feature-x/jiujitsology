@@ -438,7 +438,7 @@ jobs:
           echo "Configuring auth redirect URLs for Supabase branch: $BRANCH_REF"
 
           # Use the actual Render preview URL (not a hardcoded pattern)
-          PREVIEW_URL_CALLBACK="${PREVIEW_URL}/auth/callback"
+          PREVIEW_URL_CALLBACK="${PREVIEW_URL}/api/auth/callback"
           PREVIEW_BASE_URL="$PREVIEW_URL"
 
           echo "Preview base URL: $PREVIEW_BASE_URL"
@@ -499,7 +499,7 @@ jobs:
               "https://api.supabase.com/v1/projects/${BRANCH_REF}/config/auth" \
               -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "{\"uri_allow_list\": \"$NEW_REDIRECT_URLS\", \"site_url\": \"${PREVIEW_BASE_URL}/auth/callback\"}")
+              -d "{\"uri_allow_list\": \"$NEW_REDIRECT_URLS\", \"site_url\": \"${PREVIEW_BASE_URL}\"}")
 
             # Check if update was successful
             if echo "$UPDATE_RESPONSE" | jq -e '.uri_allow_list' > /dev/null 2>&1; then
