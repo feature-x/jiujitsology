@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { createBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB
 
 interface UploadFormProps {
   onUploadComplete: () => void;
@@ -14,11 +15,13 @@ interface UploadFormProps {
 export function UploadForm({ onUploadComplete }: UploadFormProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setProgress(null);
 
     const file = fileInputRef.current?.files?.[0];
     if (!file) {
@@ -32,24 +35,63 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      setError("File size exceeds 500MB limit.");
+      setError("File size exceeds 5GB limit.");
       return;
     }
 
     setUploading(true);
+    setProgress("Uploading to storage...");
 
-    const formData = new FormData();
-    formData.append("file", file);
+    const supabase = createBrowserClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError("You must be logged in to upload.");
+      setUploading(false);
+      setProgress(null);
+      return;
+    }
+
+    // Upload directly to Supabase Storage from the browser
+    const fileId = crypto.randomUUID();
+    const storagePath = `videos/${user.id}/${fileId}_${file.name}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("videos")
+      .upload(storagePath, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      setError(`Upload failed: ${uploadError.message}`);
+      setUploading(false);
+      setProgress(null);
+      return;
+    }
+
+    // Create the database record via API
+    setProgress("Saving video record...");
 
     const response = await fetch("/api/videos", {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: file.name.replace(/\.[^/.]+$/, ""),
+        filename: file.name,
+        storage_path: storagePath,
+      }),
     });
 
     if (!response.ok) {
+      // Clean up the uploaded file
+      await supabase.storage.from("videos").remove([storagePath]);
       const data = await response.json();
-      setError(data.error || "Upload failed.");
+      setError(data.error || "Failed to save video record.");
       setUploading(false);
+      setProgress(null);
       return;
     }
 
@@ -58,6 +100,7 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
       fileInputRef.current.value = "";
     }
     setUploading(false);
+    setProgress(null);
     onUploadComplete();
   }
 
@@ -74,6 +117,9 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
         />
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {progress && (
+        <p className="text-sm text-muted-foreground">{progress}</p>
+      )}
       <Button type="submit" disabled={uploading}>
         {uploading ? "Uploading..." : "Upload video"}
       </Button>

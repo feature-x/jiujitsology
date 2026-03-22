@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 
-const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
-
 export async function GET() {
   const supabase = await createServerClient();
   const {
@@ -36,63 +34,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
+  const body = await request.json();
+  const { title, filename, storage_path } = body;
 
-  if (!file) {
-    return NextResponse.json({ error: "No file provided" }, { status: 400 });
-  }
-
-  if (!file.type.startsWith("video/")) {
+  if (!title || !filename || !storage_path) {
     return NextResponse.json(
-      { error: "Only video files are accepted" },
+      { error: "Missing required fields: title, filename, storage_path" },
       { status: 400 }
     );
   }
 
-  if (file.size > MAX_FILE_SIZE) {
+  // Verify the storage path is scoped to this user
+  if (!storage_path.startsWith(`videos/${user.id}/`)) {
     return NextResponse.json(
-      { error: "File size exceeds 500MB limit" },
-      { status: 400 }
+      { error: "Invalid storage path" },
+      { status: 403 }
     );
   }
 
-  // Generate unique storage path
-  const fileId = crypto.randomUUID();
-  const storagePath = `videos/${user.id}/${fileId}_${file.name}`;
-
-  // Upload to Supabase Storage
-  const { error: uploadError } = await supabase.storage
-    .from("videos")
-    .upload(storagePath, file, {
-      contentType: file.type,
-      upsert: false,
-    });
-
-  if (uploadError) {
-    return NextResponse.json(
-      { error: `Upload failed: ${uploadError.message}` },
-      { status: 500 }
-    );
-  }
-
-  // Create video record
-  const title = file.name.replace(/\.[^/.]+$/, ""); // Strip extension for title
   const { data: video, error: insertError } = await supabase
     .from("videos")
     .insert({
       user_id: user.id,
       title,
-      filename: file.name,
-      storage_path: storagePath,
+      filename,
+      storage_path,
       status: "uploaded",
     })
     .select("id, title, filename, status, created_at")
     .single();
 
   if (insertError) {
-    // Clean up uploaded file if DB insert fails
-    await supabase.storage.from("videos").remove([storagePath]);
     return NextResponse.json(
       { error: `Failed to create record: ${insertError.message}` },
       { status: 500 }
