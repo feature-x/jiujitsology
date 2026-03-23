@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   }
 
   // Verify the storage path is scoped to this user
-  if (!storage_path.startsWith(`videos/${user.id}/`)) {
+  if (!storage_path.startsWith(`${user.id}/`)) {
     return NextResponse.json(
       { error: "Invalid storage path" },
       { status: 403 }

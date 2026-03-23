@@ -57,7 +57,7 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
     // Upload directly to Supabase Storage from the browser
     const fileId = crypto.randomUUID();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const storagePath = `videos/${user.id}/${fileId}_${safeName}`;
+    const storagePath = `${user.id}/${fileId}_${safeName}`;
 
     const { error: uploadError } = await supabase.storage
       .from("videos")
