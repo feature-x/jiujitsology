@@ -3,12 +3,12 @@
 import { useState } from "react";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PipelineStatus } from "@/components/videos/pipeline-status";
 
 interface Video {
   id: string;
@@ -24,15 +24,6 @@ interface VideoListProps {
   videos: Video[];
   onDelete: () => void;
 }
-
-const statusLabels: Record<string, { label: string; className: string }> = {
-  uploaded: { label: "Uploaded", className: "text-muted-foreground" },
-  transcribing: { label: "Transcribing", className: "text-blue-600" },
-  embedding: { label: "Embedding", className: "text-blue-600" },
-  extracting: { label: "Extracting", className: "text-blue-600" },
-  complete: { label: "Complete", className: "text-green-600" },
-  error: { label: "Error", className: "text-destructive" },
-};
 
 export function VideoList({ videos, onDelete }: VideoListProps) {
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -70,44 +61,31 @@ export function VideoList({ videos, onDelete }: VideoListProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {videos.map((video) => {
-        const status = statusLabels[video.status] ?? {
-          label: video.status,
-          className: "text-muted-foreground",
-        };
-
-        return (
-          <Card key={video.id}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{video.title}</CardTitle>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${status.className}`}>
-                    {status.label}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive h-7 px-2"
-                    onClick={() => handleDelete(video)}
-                    disabled={deleting === video.id}
-                  >
-                    {deleting === video.id ? "Deleting..." : "Delete"}
-                  </Button>
-                </div>
+      {videos.map((video) => (
+        <Card key={video.id}>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">{video.title}</CardTitle>
+              <div className="flex items-center gap-3">
+                <PipelineStatus
+                  status={video.status}
+                  errorMessage={video.error_message}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-destructive h-7 px-2"
+                  onClick={() => handleDelete(video)}
+                  disabled={deleting === video.id}
+                >
+                  {deleting === video.id ? "Deleting..." : "Delete"}
+                </Button>
               </div>
-              <CardDescription>{video.filename}</CardDescription>
-            </CardHeader>
-            {video.error_message && (
-              <CardContent>
-                <p className="text-sm text-destructive">
-                  {video.error_message}
-                </p>
-              </CardContent>
-            )}
-          </Card>
-        );
-      })}
+            </div>
+            <CardDescription>{video.filename}</CardDescription>
+          </CardHeader>
+        </Card>
+      ))}
     </div>
   );
 }
