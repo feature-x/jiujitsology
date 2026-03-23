@@ -73,7 +73,7 @@ export default function VideosPage() {
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading videos...</p>
       ) : (
-        <VideoList videos={videos} onDelete={fetchVideos} />
+        <VideoList videos={videos} onDelete={fetchVideos} onRefresh={fetchVideos} />
       )}
     </div>
   );

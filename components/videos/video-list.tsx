@@ -23,10 +23,12 @@ interface Video {
 interface VideoListProps {
   videos: Video[];
   onDelete: () => void;
+  onRefresh: () => void;
 }
 
-export function VideoList({ videos, onDelete }: VideoListProps) {
+export function VideoList({ videos, onDelete, onRefresh }: VideoListProps) {
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [ingesting, setIngesting] = useState<string | null>(null);
 
   async function handleDelete(video: Video) {
     const confirmed = window.confirm(
@@ -50,6 +52,22 @@ export function VideoList({ videos, onDelete }: VideoListProps) {
     onDelete();
   }
 
+  async function handleIngest(video: Video) {
+    setIngesting(video.id);
+
+    const response = await fetch(`/api/ingest/${video.id}`, {
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      alert(data.error || "Failed to start ingestion.");
+    }
+
+    setIngesting(null);
+    onRefresh();
+  }
+
   if (videos.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -61,31 +79,51 @@ export function VideoList({ videos, onDelete }: VideoListProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {videos.map((video) => (
-        <Card key={video.id}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">{video.title}</CardTitle>
-              <div className="flex items-center gap-3">
-                <PipelineStatus
-                  status={video.status}
-                  errorMessage={video.error_message}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-destructive h-7 px-2"
-                  onClick={() => handleDelete(video)}
-                  disabled={deleting === video.id}
-                >
-                  {deleting === video.id ? "Deleting..." : "Delete"}
-                </Button>
+      {videos.map((video) => {
+        const canIngest =
+          video.status === "uploaded" || video.status === "error";
+
+        return (
+          <Card key={video.id}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">{video.title}</CardTitle>
+                <div className="flex items-center gap-3">
+                  <PipelineStatus
+                    status={video.status}
+                    errorMessage={video.error_message}
+                  />
+                  {canIngest && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => handleIngest(video)}
+                      disabled={ingesting === video.id}
+                    >
+                      {ingesting === video.id
+                        ? "Starting..."
+                        : video.status === "error"
+                          ? "Retry"
+                          : "Ingest"}
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive h-7 px-2"
+                    onClick={() => handleDelete(video)}
+                    disabled={deleting === video.id}
+                  >
+                    {deleting === video.id ? "Deleting..." : "Delete"}
+                  </Button>
+                </div>
               </div>
-            </div>
-            <CardDescription>{video.filename}</CardDescription>
-          </CardHeader>
-        </Card>
-      ))}
+              <CardDescription>{video.filename}</CardDescription>
+            </CardHeader>
+          </Card>
+        );
+      })}
     </div>
   );
 }
