@@ -1,10 +1,10 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
-
 const EMBEDDING_MODEL = "text-embedding-3-small";
+
+function getClient() {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+}
 const MAX_BATCH_SIZE = 100;
 const TARGET_CHUNK_TOKENS = 500; // ~500 tokens per chunk
 
@@ -75,7 +75,7 @@ export async function embedChunks(chunks: Chunk[]): Promise<EmbeddedChunk[]> {
     const batch = chunks.slice(i, i + MAX_BATCH_SIZE);
     const texts = batch.map((c) => c.content);
 
-    const response = await openai.embeddings.create({
+    const response = await getClient().embeddings.create({
       model: EMBEDDING_MODEL,
       input: texts,
     });
@@ -95,7 +95,7 @@ export async function embedChunks(chunks: Chunk[]): Promise<EmbeddedChunk[]> {
  * Embed a single query string for similarity search.
  */
 export async function embedQuery(query: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
+  const response = await getClient().embeddings.create({
     model: EMBEDDING_MODEL,
     input: query,
   });

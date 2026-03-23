@@ -1,8 +1,8 @@
 import { AssemblyAI } from "assemblyai";
 
-const client = new AssemblyAI({
-  apiKey: process.env.ASSEMBLYAI_API_KEY!,
-});
+function getClient() {
+  return new AssemblyAI({ apiKey: process.env.ASSEMBLYAI_API_KEY! });
+}
 
 export interface TranscriptionSegment {
   start: number; // seconds
@@ -24,6 +24,7 @@ export interface TranscriptionResult {
 export async function transcribeVideo(
   videoUrl: string
 ): Promise<TranscriptionResult> {
+  const client = getClient();
   const transcript = await client.transcripts.transcribe({
     audio_url: videoUrl,
     speech_models: ["universal-3-pro"],
