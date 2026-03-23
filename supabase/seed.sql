@@ -1,6 +1,5 @@
 -- Default BJJ Ontology Seed Data
--- 9 node types + 8 edge types = 17 entries
--- Matches TECHNICAL-ARCHITECTURE.md ontology specification
+-- 11 node types + 8 edge types = 19 entries
 
 INSERT INTO ontology_entries (category, name, description, properties_schema) VALUES
   -- Node Types
@@ -11,6 +10,8 @@ INSERT INTO ontology_entries (category, name, description, properties_schema) VA
   ('node_type', 'Sweep', 'A reversal from bottom', '{"direction": "string"}'),
   ('node_type', 'Guard', 'A specific guard type', '{"open_closed": "string"}'),
   ('node_type', 'Pass', 'A guard passing technique', '{"style": "string"}'),
+  ('node_type', 'Pin', 'Restrains an opponent''s upper body', '{"gi_nogi": "string"}'),
+  ('node_type', 'Takedown', 'Grounds a standing opponent', '{"style": "string"}'),
   ('node_type', 'Instructor', 'A BJJ instructor or coach', '{"lineage": "string"}'),
   ('node_type', 'Instructional', 'A video course', '{"publisher": "string", "year": "integer"}'),
   -- Edge Types

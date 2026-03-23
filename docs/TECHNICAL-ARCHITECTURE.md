@@ -27,17 +27,19 @@ Jiujitsology is a Next.js web application that ingests BJJ instructional videos,
 
 ### Database
 
-- **Primary**: Supabase (PostgreSQL)
+- **Primary**: Supabase (PostgreSQL + pgvector)
   - User data, video metadata, ingestion state
   - Knowledge graph storage (nodes + edges tables)
   - Ontology definitions
+  - Embedding vectors for semantic search (chunks table with pgvector)
   - Row-level security for user data isolation
-- **Auth**: Supabase Auth (email/password)
+- **Auth**: Supabase Auth (magic link)
 - **Storage**: Supabase Storage (video file uploads)
 
 ### External Services
 
 - **Transcription**: OpenAI Whisper API ($0.006/min)
+- **Embeddings**: OpenAI Embeddings API (text-embedding-3-small, 1536 dimensions, ~$0.02/1M tokens)
 - **LLM**: Vercel AI SDK with configurable provider (start with OpenAI GPT-4o or Anthropic Claude)
 - **Error Tracking**: Sentry (self-receiver pattern, already configured)
 
@@ -105,9 +107,15 @@ Jiujitsology is a Next.js web application that ingests BJJ instructional videos,
    └─→ Status: "transcribing"
    └─→ OpenAI Whisper API (audio → text)
    └─→ transcriptions table (raw text stored)
+   └─→ Status: "embedding"
+
+3. Chunk & embed transcription
+   └─→ Split transcription into chunks (by segment boundaries)
+   └─→ OpenAI Embeddings API (text → vectors)
+   └─→ chunks table (text + embedding + timestamps stored)
    └─→ Status: "extracting"
 
-3. Knowledge extraction
+4. Knowledge extraction
    └─→ LLM processes transcription against ontology
    └─→ Extracts entities (techniques, positions, concepts)
    └─→ Extracts relationships (transitions, variants, prerequisites)
@@ -115,15 +123,17 @@ Jiujitsology is a Next.js web application that ingests BJJ instructional videos,
    └─→ Status: "complete"
 ```
 
-#### Chat Query Flow
+#### Chat Query Flow (Hybrid: RAG + Knowledge Graph)
 
 ```
 1. User sends natural language question
-2. API loads relevant subgraph from Supabase into graphology
-3. Ontology definitions loaded as context
-4. LLM receives: question + graph context + ontology
-5. LLM reasons over graph, generates answer
-6. Response streamed back to user via Vercel AI SDK
+2. Embed the question via OpenAI Embeddings API
+3. Vector similarity search against chunks table (pgvector) → retrieve relevant passages
+4. Load relevant subgraph from nodes/edges into graphology
+5. Ontology definitions loaded as context
+6. LLM receives: question + relevant chunks (RAG) + graph context + ontology
+7. LLM reasons over both structured graph AND raw instructor commentary
+8. Response streamed back to user via Vercel AI SDK
 ```
 
 ### API Design
@@ -142,6 +152,7 @@ All APIs are Next.js App Router route handlers. REST patterns with JSON payloads
 | `/api/graph` | GET | Query knowledge graph (with filters) |
 | `/api/graph/nodes` | GET | List nodes (paginated, filtered) |
 | `/api/graph/edges` | GET | List edges (by node neighborhood) |
+| `/api/search` | POST | Semantic search against chunks (pgvector) |
 | `/api/chat` | POST | Streaming chat (Vercel AI SDK) |
 | `/api/ontology` | GET | List ontology definitions |
 | `/api/ontology` | POST | Create/update ontology |
@@ -177,6 +188,20 @@ All APIs are Next.js App Router route handlers. REST patterns with JSON payloads
 │ created_at   │     │ source_video  │
 └──────────────┘     │ created_at    │
                      └───────────────┘
+
+┌──────────────────┐
+│    Chunk         │
+│                  │
+│ id               │
+│ user_id (FK)     │
+│ video_id (FK)    │
+│ transcription_id │
+│ content          │  (text passage)
+│ start_time       │  (float, seconds)
+│ end_time         │  (float, seconds)
+│ embedding        │  (vector(1536))
+│ created_at       │
+└──────────────────┘
 
 ┌──────────────────┐
 │  OntologyEntry   │
@@ -240,6 +265,21 @@ CREATE TABLE edges (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Enable pgvector for semantic search
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE chunks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) NOT NULL,
+  video_id UUID REFERENCES videos(id) ON DELETE CASCADE NOT NULL,
+  transcription_id UUID REFERENCES transcriptions(id) ON DELETE CASCADE NOT NULL,
+  content TEXT NOT NULL,
+  start_time FLOAT,
+  end_time FLOAT,
+  embedding VECTOR(1536),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 CREATE TABLE ontology_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   category TEXT NOT NULL,    -- 'node_type' or 'edge_type'
@@ -254,6 +294,7 @@ CREATE TABLE ontology_entries (
 -- Row Level Security
 ALTER TABLE videos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transcriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chunks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE nodes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE edges ENABLE ROW LEVEL SECURITY;
 
@@ -263,6 +304,9 @@ CREATE POLICY "Users see own videos"
 CREATE POLICY "Users see own transcriptions"
   ON transcriptions FOR ALL
   USING (video_id IN (SELECT id FROM videos WHERE user_id = auth.uid()));
+
+CREATE POLICY "Users see own chunks"
+  ON chunks FOR ALL USING (auth.uid() = user_id);
 
 CREATE POLICY "Users see own nodes"
   ON nodes FOR ALL USING (auth.uid() = user_id);
@@ -278,6 +322,9 @@ CREATE INDEX idx_nodes_user_type ON nodes(user_id, type);
 CREATE INDEX idx_edges_source ON edges(source_id);
 CREATE INDEX idx_edges_target ON edges(target_id);
 CREATE INDEX idx_videos_user_status ON videos(user_id, status);
+CREATE INDEX idx_chunks_user ON chunks(user_id);
+CREATE INDEX idx_chunks_video ON chunks(video_id);
+CREATE INDEX idx_chunks_embedding ON chunks USING ivfflat (embedding vector_cosine_ops);
 ```
 
 ### Ontology — Default BJJ Seed Data
@@ -295,6 +342,8 @@ The system ships with a default BJJ ontology that operators can customize:
 | Sweep | A reversal from bottom | direction |
 | Guard | A specific guard type | open/closed |
 | Pass | A guard passing technique | pressure/speed |
+| Pin | Restrains an opponent's upper body | gi/nogi |
+| Takedown | Grounds a standing opponent | style |
 | Instructor | A BJJ instructor/coach | lineage |
 | Instructional | A video course | publisher, year |
 
@@ -353,9 +402,9 @@ The system ships with a default BJJ ontology that operators can customize:
 
 ### Authentication
 
-- Supabase Auth with email/password
-- JWT tokens managed by Supabase client
-- Middleware protects all routes except landing page and health check
+- Supabase Auth with magic link (email OTP)
+- Cookie-based sessions managed by @supabase/ssr
+- Middleware protects all routes except auth pages and health check
 
 ### Authorization
 
@@ -421,3 +470,10 @@ The system ships with a default BJJ ontology that operators can customize:
 - **Context**: Need to perform graph traversal, pathfinding, and analysis for chat queries and visualization. With graph data in PostgreSQL, need an application-layer graph library.
 - **Decision**: Use graphology for in-memory graph operations. Load relevant subgraphs from Supabase per request.
 - **Consequences**: BFS, DFS, shortest path, neighborhood queries available out of the box. Per-request memory usage scales with subgraph size — acceptable at MVP scale.
+
+### ADR-006: Hybrid RAG + Knowledge Graph for Chat (pgvector Embeddings)
+
+- **Status**: Accepted
+- **Context**: The knowledge graph captures structured relationships (technique → position, counters, chains) but loses the raw instructor commentary — the "why", teaching cues, and contextual explanation. Semantic queries like "what does Danaher say about grip fighting philosophy?" can't be answered from the graph alone.
+- **Decision**: Add an embedding pipeline using OpenAI text-embedding-3-small (1536 dimensions) stored in Supabase via pgvector. Chat queries use both vector similarity search (RAG for relevant passages) and graph traversal (structured relationships). The LLM receives both as context.
+- **Consequences**: Richer answers that combine structured technique relationships with raw instructor commentary. Minimal additional cost (~$0.02/1M tokens for embeddings). Requires a `chunks` table and an embedding step in the ingestion pipeline. pgvector is native to Supabase PostgreSQL — no additional infrastructure.
