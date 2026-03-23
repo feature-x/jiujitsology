@@ -26,7 +26,7 @@ export async function transcribeVideo(
 ): Promise<TranscriptionResult> {
   const transcript = await client.transcripts.transcribe({
     audio_url: videoUrl,
-    speech_model: "best",
+    speech_models: ["universal-3-pro"],
   });
 
   if (transcript.status === "error") {
