@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { UploadForm } from "@/components/videos/upload-form";
 import { VideoList } from "@/components/videos/video-list";
 import { Separator } from "@/components/ui/separator";
+import { isTerminalStatus } from "@/components/videos/pipeline-status";
 
 interface Video {
   id: string;
@@ -15,9 +16,12 @@ interface Video {
   created_at: string;
 }
 
+const POLL_INTERVAL = 5000; // 5 seconds
+
 export default function VideosPage() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchVideos = useCallback(async () => {
     const response = await fetch("/api/videos");
@@ -27,6 +31,27 @@ export default function VideosPage() {
     }
     setLoading(false);
   }, []);
+
+  // Poll when any video is in a non-terminal state
+  useEffect(() => {
+    const hasActiveVideos = videos.some(
+      (v) => !isTerminalStatus(v.status) && v.status !== "uploaded"
+    );
+
+    if (hasActiveVideos && !pollRef.current) {
+      pollRef.current = setInterval(fetchVideos, POLL_INTERVAL);
+    } else if (!hasActiveVideos && pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [videos, fetchVideos]);
 
   useEffect(() => {
     fetchVideos();
