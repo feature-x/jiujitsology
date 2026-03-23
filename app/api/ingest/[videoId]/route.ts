@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { transcribeVideo } from "@/lib/transcription";
+import { chunkSegments, embedChunks } from "@/lib/embeddings";
 
 const SIGNED_URL_EXPIRY = 3600; // 1 hour — enough for AssemblyAI to download
 
@@ -44,30 +45,28 @@ export async function POST(
     .update({ status: "transcribing", error_message: null })
     .eq("id", videoId);
 
-  // Return immediately — transcription runs async
+  // Return immediately — pipeline runs async
   const response = NextResponse.json(
     { videoId, status: "transcribing" },
     { status: 202 }
   );
 
-  // Run transcription in the background
-  // (Next.js API routes can continue processing after sending response
-  //  via waitUntil in edge runtime, but in Node runtime we just
-  //  fire-and-forget with error handling)
-  runTranscription(supabase, video.id, video.storage_path).catch((err) => {
-    console.error(`Transcription failed for video ${videoId}:`, err);
+  // Run full pipeline in the background
+  runPipeline(supabase, user.id, video.id, video.storage_path).catch((err) => {
+    console.error(`Pipeline failed for video ${videoId}:`, err);
   });
 
   return response;
 }
 
-async function runTranscription(
+async function runPipeline(
   supabase: Awaited<ReturnType<typeof createServerClient>>,
+  userId: string,
   videoId: string,
   storagePath: string
 ) {
   try {
-    // Generate a signed URL for AssemblyAI to download the video
+    // ── Step 1: Transcribe ──────────────────────────────────────────
     const { data: signedUrlData, error: signError } = await supabase.storage
       .from("videos")
       .createSignedUrl(storagePath, SIGNED_URL_EXPIRY);
@@ -78,40 +77,88 @@ async function runTranscription(
       );
     }
 
-    // Transcribe via AssemblyAI
     const result = await transcribeVideo(signedUrlData.signedUrl);
 
-    // Store transcription
-    const { error: insertError } = await supabase
+    const { data: transcription, error: insertError } = await supabase
       .from("transcriptions")
       .insert({
         video_id: videoId,
         text: result.text,
         segments: result.segments,
-      });
+      })
+      .select("id")
+      .single();
 
-    if (insertError) {
-      throw new Error(`Failed to store transcription: ${insertError.message}`);
+    if (insertError || !transcription) {
+      throw new Error(
+        `Failed to store transcription: ${insertError?.message || "unknown"}`
+      );
     }
 
-    // Update video with duration and advance status
     await supabase
       .from("videos")
       .update({
-        status: "embedding", // Next pipeline step
+        status: "embedding",
         duration_sec: Math.round(result.durationSec),
       })
       .eq("id", videoId);
 
     console.log(
       `Transcription complete for video ${videoId}: ${result.durationSec.toFixed(0)}s, ` +
-        `${result.segments.length} segments, ~$${(result.durationSec / 60 * 0.006).toFixed(3)} cost`
+        `${result.segments.length} segments, ~$${((result.durationSec / 60) * 0.006).toFixed(3)} cost`
+    );
+
+    // ── Step 2: Chunk & Embed ───────────────────────────────────────
+    const chunks = chunkSegments(result.segments);
+    console.log(
+      `Chunked ${result.segments.length} segments into ${chunks.length} chunks for video ${videoId}`
+    );
+
+    const embeddedChunks = await embedChunks(chunks);
+    console.log(
+      `Embedded ${embeddedChunks.length} chunks for video ${videoId}, ` +
+        `~$${((result.text.length / 4 / 1_000_000) * 0.02).toFixed(4)} embedding cost`
+    );
+
+    // Insert chunks in batches
+    const chunkRows = embeddedChunks.map((c) => ({
+      user_id: userId,
+      video_id: videoId,
+      transcription_id: transcription.id,
+      content: c.content,
+      start_time: c.startTime,
+      end_time: c.endTime,
+      embedding: JSON.stringify(c.embedding),
+    }));
+
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < chunkRows.length; i += BATCH_SIZE) {
+      const batch = chunkRows.slice(i, i + BATCH_SIZE);
+      const { error: chunkError } = await supabase
+        .from("chunks")
+        .insert(batch);
+
+      if (chunkError) {
+        throw new Error(
+          `Failed to store chunks (batch ${i / BATCH_SIZE + 1}): ${chunkError.message}`
+        );
+      }
+    }
+
+    // Advance to next pipeline step
+    await supabase
+      .from("videos")
+      .update({ status: "extracting" })
+      .eq("id", videoId);
+
+    console.log(
+      `Embedding complete for video ${videoId}: ${embeddedChunks.length} chunks stored`
     );
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unknown transcription error";
+      error instanceof Error ? error.message : "Unknown pipeline error";
 
-    console.error(`Transcription error for video ${videoId}:`, message);
+    console.error(`Pipeline error for video ${videoId}:`, message);
 
     await supabase
       .from("videos")

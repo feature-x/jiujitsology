@@ -306,22 +306,26 @@ jobs:
 
           # Map to Next.js env var names used by the app
           ASSEMBLYAI_KEY="${{ secrets.ASSEMBLYAI_API_KEY }}"
+          OPENAI_KEY="${{ secrets.OPENAI_API_KEY }}"
 
           UPDATED_VARS=$(echo "$CURRENT_VARS" | jq \
             --arg surl "${SUPABASE_URL}" \
             --arg sanonkey "${SUPABASE_ANON_KEY}" \
             --arg sservicekey "${SUPABASE_SERVICE_KEY}" \
             --arg assemblyai "${ASSEMBLYAI_KEY}" \
+            --arg openai "${OPENAI_KEY}" \
             '[.[] | select(
               .envVar.key != "NEXT_PUBLIC_SUPABASE_URL" and
               .envVar.key != "NEXT_PUBLIC_SUPABASE_ANON_KEY" and
               .envVar.key != "SUPABASE_SERVICE_ROLE_KEY" and
-              .envVar.key != "ASSEMBLYAI_API_KEY"
+              .envVar.key != "ASSEMBLYAI_API_KEY" and
+              .envVar.key != "OPENAI_API_KEY"
             ) | {key: .envVar.key, value: .envVar.value}] + [
               {key: "NEXT_PUBLIC_SUPABASE_URL", value: $surl},
               {key: "NEXT_PUBLIC_SUPABASE_ANON_KEY", value: $sanonkey},
               {key: "SUPABASE_SERVICE_ROLE_KEY", value: $sservicekey},
-              {key: "ASSEMBLYAI_API_KEY", value: $assemblyai}
+              {key: "ASSEMBLYAI_API_KEY", value: $assemblyai},
+              {key: "OPENAI_API_KEY", value: $openai}
             ]')
 
           UPDATE_RESPONSE=$(curl -s -X PUT \
