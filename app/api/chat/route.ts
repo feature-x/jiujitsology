@@ -19,16 +19,29 @@ export async function POST(request: Request) {
     return new Response("Missing messages", { status: 400 });
   }
 
-  // Get the latest user message for context retrieval
+  // Get the latest user message text for context retrieval
   const lastUserMessage = messages
     .filter((m: { role: string }) => m.role === "user")
     .pop();
+
+  // Extract text from message (handles both v5 content string and v6 parts array)
+  let queryText = "";
+  if (lastUserMessage) {
+    if (typeof lastUserMessage.content === "string") {
+      queryText = lastUserMessage.content;
+    } else if (Array.isArray(lastUserMessage.parts)) {
+      queryText = lastUserMessage.parts
+        .filter((p: { type: string }) => p.type === "text")
+        .map((p: { text: string }) => p.text)
+        .join(" ");
+    }
+  }
 
   // Build context from knowledge graph + embeddings
   const context = await buildChatContext(
     supabase,
     user.id,
-    lastUserMessage?.content || ""
+    queryText
   );
 
   const systemPrompt = buildSystemPrompt(context);
@@ -39,5 +52,5 @@ export async function POST(request: Request) {
     messages,
   });
 
-  return result.toTextStreamResponse();
+  return result.toUIMessageStreamResponse();
 }
