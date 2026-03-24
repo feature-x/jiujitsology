@@ -11,7 +11,7 @@ const extractionSchema = z.object({
     z.object({
       type: z.string().describe("Node type from the ontology"),
       label: z.string().describe("Canonical name for this entity"),
-      properties: z.record(z.string(), z.unknown()).optional().describe("Optional properties"),
+      properties: z.string().optional().describe("Optional properties as JSON string, e.g. {\"gi_nogi\": \"both\"}"),
     })
   ),
   edges: z.array(
@@ -19,7 +19,7 @@ const extractionSchema = z.object({
       source_label: z.string().describe("Label of the source node"),
       target_label: z.string().describe("Label of the target node"),
       relationship: z.string().describe("Edge type from the ontology"),
-      properties: z.record(z.string(), z.unknown()).optional().describe("Optional properties"),
+      properties: z.string().optional().describe("Optional properties as JSON string, e.g. {\"gi_nogi\": \"both\"}"),
     })
   ),
 });
@@ -132,7 +132,7 @@ export async function storeExtraction(
           user_id: userId,
           type: node.type,
           label: node.label,
-          properties: node.properties || {},
+          properties: parseProps(node.properties),
           source_video_id: videoId,
         })
         .select("id")
@@ -166,7 +166,7 @@ export async function storeExtraction(
       source_id: sourceId,
       target_id: targetId,
       relationship: edge.relationship,
-      properties: edge.properties || {},
+      properties: parseProps(edge.properties),
       source_video_id: videoId,
     });
 
@@ -185,6 +185,16 @@ export async function storeExtraction(
     edgesCreated: edgesInserted,
     totalNodes: nodeIdMap.size,
   };
+}
+
+/** Parse properties from JSON string (LLM output) to object */
+function parseProps(props: string | undefined): Record<string, unknown> {
+  if (!props) return {};
+  try {
+    return JSON.parse(props);
+  } catch {
+    return {};
+  }
 }
 
 /** Find a node ID by label, trying exact match then case-insensitive */
