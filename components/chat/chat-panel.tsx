@@ -38,7 +38,7 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-10rem)] max-w-2xl mx-auto">
+    <div className="flex flex-col h-[calc(100vh-12rem)] max-w-2xl mx-auto pb-4">
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 pb-4">
         {chat.messages.length === 0 && (
