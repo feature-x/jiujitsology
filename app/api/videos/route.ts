@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { title, filename, storage_path } = body;
+  const { title, filename, storage_path, content_hash } = body;
 
   if (!title || !filename || !storage_path) {
     return NextResponse.json(
@@ -59,6 +59,7 @@ export async function POST(request: Request) {
       title,
       filename,
       storage_path,
+      content_hash: content_hash || null,
       status: "uploaded",
     })
     .select("id, title, filename, status, created_at")

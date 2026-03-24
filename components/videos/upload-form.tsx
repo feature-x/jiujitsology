@@ -12,6 +12,32 @@ interface UploadFormProps {
   onUploadComplete: () => void;
 }
 
+/** Compute SHA-256 hash of a file using streaming reads */
+async function hashFile(file: File): Promise<string> {
+  const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
+  const chunks: ArrayBuffer[] = [];
+  let offset = 0;
+
+  while (offset < file.size) {
+    const slice = file.slice(offset, offset + CHUNK_SIZE);
+    chunks.push(await slice.arrayBuffer());
+    offset += CHUNK_SIZE;
+  }
+
+  // Concatenate all chunks and hash
+  const totalLength = chunks.reduce((sum, c) => sum + c.byteLength, 0);
+  const combined = new Uint8Array(totalLength);
+  let pos = 0;
+  for (const chunk of chunks) {
+    combined.set(new Uint8Array(chunk), pos);
+    pos += chunk.byteLength;
+  }
+
+  const hashBuffer = await crypto.subtle.digest("SHA-256", combined);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export function UploadForm({ onUploadComplete }: UploadFormProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +66,40 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
     }
 
     setUploading(true);
+
+    // Step 1: Compute content hash
+    setProgress("Computing file hash...");
+    let contentHash: string;
+    try {
+      contentHash = await hashFile(file);
+    } catch {
+      setError("Failed to compute file hash.");
+      setUploading(false);
+      setProgress(null);
+      return;
+    }
+
+    // Step 2: Check for duplicate
+    setProgress("Checking for duplicates...");
+    const dupResponse = await fetch("/api/videos/check-duplicate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content_hash: contentHash }),
+    });
+
+    if (dupResponse.ok) {
+      const dupData = await dupResponse.json();
+      if (dupData.duplicate) {
+        setError(
+          `This video has already been uploaded as "${dupData.existing_title}".`
+        );
+        setUploading(false);
+        setProgress(null);
+        return;
+      }
+    }
+
+    // Step 3: Upload to storage
     setProgress("Uploading to storage...");
 
     const supabase = createBrowserClient();
@@ -54,7 +114,6 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
       return;
     }
 
-    // Upload directly to Supabase Storage from the browser
     const fileId = crypto.randomUUID();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const storagePath = `${user.id}/${fileId}_${safeName}`;
@@ -73,7 +132,7 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
       return;
     }
 
-    // Create the database record via API
+    // Step 4: Create database record
     setProgress("Saving video record...");
 
     const response = await fetch("/api/videos", {
@@ -83,11 +142,11 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
         title: file.name.replace(/\.[^/.]+$/, ""),
         filename: file.name,
         storage_path: storagePath,
+        content_hash: contentHash,
       }),
     });
 
     if (!response.ok) {
-      // Clean up the uploaded file
       await supabase.storage.from("videos").remove([storagePath]);
       const data = await response.json();
       setError(data.error || "Failed to save video record.");
@@ -96,7 +155,6 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
       return;
     }
 
-    // Reset form and notify parent
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
