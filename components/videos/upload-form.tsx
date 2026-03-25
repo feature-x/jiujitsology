@@ -42,6 +42,8 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
+  const [instructor, setInstructor] = useState("");
+  const [instructional, setInstructional] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -143,6 +145,8 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
         filename: file.name,
         storage_path: storagePath,
         content_hash: contentHash,
+        instructor: instructor.trim() || null,
+        instructional: instructional.trim() || null,
       }),
     });
 
@@ -158,6 +162,8 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+    setInstructor("");
+    setInstructional("");
     setUploading(false);
     setProgress(null);
     onUploadComplete();
@@ -174,6 +180,30 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
           ref={fileInputRef}
           disabled={uploading}
         />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="instructor">Instructor</Label>
+          <Input
+            id="instructor"
+            type="text"
+            placeholder="e.g., John Danaher"
+            value={instructor}
+            onChange={(e) => setInstructor(e.target.value)}
+            disabled={uploading}
+          />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="instructional">Instructional</Label>
+          <Input
+            id="instructional"
+            type="text"
+            placeholder="e.g., Enter the System"
+            value={instructional}
+            onChange={(e) => setInstructional(e.target.value)}
+            disabled={uploading}
+          />
+        </div>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {progress && (

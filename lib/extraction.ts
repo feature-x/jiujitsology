@@ -30,9 +30,15 @@ export type ExtractionResult = z.infer<typeof extractionSchema>;
  * Extract knowledge graph nodes and edges from transcription text
  * using the ontology as a constraint schema.
  */
+export interface VideoMetadata {
+  instructor?: string | null;
+  instructional?: string | null;
+}
+
 export async function extractKnowledge(
   transcriptionText: string,
-  ontologyEntries: OntologyEntry[]
+  ontologyEntries: OntologyEntry[],
+  metadata?: VideoMetadata
 ): Promise<ExtractionResult> {
   const validNodeTypes = new Set(
     ontologyEntries.filter((e) => e.category === "node_type").map((e) => e.name)
@@ -47,7 +53,7 @@ export async function extractKnowledge(
   const allEdges: ExtractionResult["edges"] = [];
 
   for (const chunk of textChunks) {
-    const prompt = buildExtractionPrompt(ontologyEntries, chunk);
+    const prompt = buildExtractionPrompt(ontologyEntries, chunk, metadata);
 
     const { object } = await generateObject({
       model: openai("gpt-4o"),
