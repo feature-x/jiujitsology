@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   // Load nodes (filtered by type if specified)
   let nodesQuery = supabase
     .from("nodes")
-    .select("id, type, label, properties")
+    .select("id, type, label, properties, source_video_id, videos(title)")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -51,7 +51,14 @@ export async function GET(request: Request) {
   }
 
   const { result } = buildSubgraph(
-    nodes.map((n) => ({ ...n, properties: (n.properties as Record<string, unknown>) || {} })),
+    nodes.map((n) => ({
+      id: n.id,
+      type: n.type,
+      label: n.label,
+      properties: (n.properties as Record<string, unknown>) || {},
+      source_video_id: n.source_video_id,
+      source_video_title: (Array.isArray(n.videos) ? n.videos[0]?.title : (n.videos as { title: string } | null)?.title) || null,
+    })),
     (edges || []).map((e) => ({ ...e, properties: (e.properties as Record<string, unknown>) || {} }))
   );
 

@@ -5,6 +5,8 @@ export interface GraphNode {
   type: string;
   label: string;
   properties: Record<string, unknown>;
+  source_video_id?: string | null;
+  source_video_title?: string | null;
 }
 
 export interface GraphEdge {
