@@ -19,6 +19,8 @@ interface GraphNode {
   type: string;
   label: string;
   properties: Record<string, unknown>;
+  source_video_id?: string | null;
+  source_video_title?: string | null;
 }
 
 interface GraphEdge {
@@ -34,6 +36,7 @@ interface SelectedNode {
   type: string;
   label: string;
   properties: Record<string, unknown>;
+  source_video_title: string | null;
   edges: { relationship: string; target: string; direction: "out" | "in" }[];
 }
 
@@ -206,6 +209,7 @@ export function GraphExplorer() {
       type: node.type,
       label: node.label,
       properties: node.properties,
+      source_video_title: node.source_video_title || null,
       edges: nodeEdges,
     });
   }
@@ -250,6 +254,14 @@ export function GraphExplorer() {
               <CardTitle className="text-base">{selectedNode.label}</CardTitle>
             </CardHeader>
             <CardContent>
+              {selectedNode.source_video_title && (
+                <div className="mb-3">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">
+                    Source
+                  </p>
+                  <p className="text-xs">{selectedNode.source_video_title}</p>
+                </div>
+              )}
               {Object.keys(selectedNode.properties).length > 0 && (
                 <div className="mb-3">
                   <p className="text-xs font-medium text-muted-foreground mb-1">
