@@ -35,6 +35,12 @@ function tusUpload(
       retryDelays: [0, 3000, 5000, 10000, 20000],
       uploadDataDuringCreation: true,
       removeFingerprintOnSuccess: true,
+      // Include storagePath in the fingerprint so retries with a new UUID
+      // don't accidentally resume a previous upload under a different path.
+      fingerprint: (file, options) =>
+        Promise.resolve(
+          `${storagePath}-${(file as File).size}-${(file as File).type}`
+        ),
       metadata: {
         bucketName,
         objectName: storagePath,
@@ -56,7 +62,7 @@ function tusUpload(
       onSuccess: () => resolve(),
     });
 
-    // Check for previous uploads to enable resume
+    // Check for previous uploads to enable resume within the same storagePath
     upload.findPreviousUploads().then((previousUploads) => {
       if (previousUploads.length > 0) {
         upload.resumeFromPreviousUpload(previousUploads[0]);
