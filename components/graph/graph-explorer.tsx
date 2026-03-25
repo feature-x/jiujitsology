@@ -43,6 +43,7 @@ export function GraphExplorer() {
   const [loading, setLoading] = useState(true);
   const [layout, setLayout] = useState("cose");
   const [visibleTypes, setVisibleTypes] = useState<Set<string>>(new Set());
+  const [selectedInstructors, setSelectedInstructors] = useState<Set<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
@@ -66,8 +67,49 @@ export function GraphExplorer() {
     fetchGraph();
   }, [fetchGraph]);
 
+  // Get instructor nodes for the dropdown
+  const instructors = nodes
+    .filter((n) => n.type === "Instructor")
+    .map((n) => n.label)
+    .sort();
+
+  // Build the set of node IDs connected to selected instructors
+  const instructorFilteredIds = (() => {
+    if (selectedInstructors.size === 0) return null; // empty = show all
+
+    const allConnected = new Set<string>();
+
+    for (const instructorName of selectedInstructors) {
+      const instructorNode = nodes.find(
+        (n) => n.type === "Instructor" && n.label === instructorName
+      );
+      if (!instructorNode) continue;
+
+      // Depth 1: direct connections
+      const connectedIds = new Set<string>([instructorNode.id]);
+      for (const edge of edges) {
+        if (edge.source_id === instructorNode.id) connectedIds.add(edge.target_id);
+        if (edge.target_id === instructorNode.id) connectedIds.add(edge.source_id);
+      }
+
+      // Depth 2: connections of connections
+      for (const edge of edges) {
+        if (connectedIds.has(edge.source_id)) connectedIds.add(edge.target_id);
+        if (connectedIds.has(edge.target_id)) connectedIds.add(edge.source_id);
+      }
+
+      for (const id of connectedIds) allConnected.add(id);
+    }
+
+    return allConnected;
+  })();
+
   // Build Cytoscape elements from filtered data
-  const filteredNodes = nodes.filter((n) => visibleTypes.has(n.type));
+  const filteredNodes = nodes.filter((n) => {
+    if (!visibleTypes.has(n.type)) return false;
+    if (instructorFilteredIds && !instructorFilteredIds.has(n.id)) return false;
+    return true;
+  });
   const filteredNodeIds = new Set(filteredNodes.map((n) => n.id));
   const filteredEdges = edges.filter(
     (e) => filteredNodeIds.has(e.source_id) && filteredNodeIds.has(e.target_id)
@@ -95,6 +137,25 @@ export function GraphExplorer() {
   ];
 
   const nodeTypes = Array.from(new Set(nodes.map((n) => n.type))).sort();
+
+  // Re-run layout when filters change
+  useEffect(() => {
+    if (cyRef.current && !loading) {
+      cyRef.current.layout({ name: layout }).run();
+    }
+  }, [filteredNodes.length, filteredEdges.length, layout, loading]);
+
+  function handleToggleInstructor(name: string) {
+    setSelectedInstructors((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }
 
   function handleToggleType(type: string) {
     setVisibleTypes((prev) => {
@@ -177,6 +238,9 @@ export function GraphExplorer() {
           onFitView={handleFitView}
           nodeCount={filteredNodes.length}
           edgeCount={filteredEdges.length}
+          instructors={instructors}
+          selectedInstructors={selectedInstructors}
+          onToggleInstructor={handleToggleInstructor}
         />
 
         {selectedNode && (
