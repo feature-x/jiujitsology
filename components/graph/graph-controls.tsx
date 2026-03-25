@@ -14,8 +14,8 @@ interface GraphControlsProps {
   nodeCount: number;
   edgeCount: number;
   instructors: string[];
-  selectedInstructor: string | null;
-  onInstructorChange: (instructor: string | null) => void;
+  selectedInstructors: Set<string>;
+  onToggleInstructor: (name: string) => void;
 }
 
 const layouts = [
@@ -35,8 +35,8 @@ export function GraphControls({
   nodeCount,
   edgeCount,
   instructors,
-  selectedInstructor,
-  onInstructorChange,
+  selectedInstructors,
+  onToggleInstructor,
 }: GraphControlsProps) {
   return (
     <div className="flex flex-col gap-4 p-4 border rounded-lg bg-card">
@@ -48,21 +48,58 @@ export function GraphControls({
 
       {instructors.length > 0 && (
         <div>
-          <Label className="text-xs font-medium mb-2 block">Instructor</Label>
-          <select
-            className="w-full text-xs border rounded px-2 py-1.5 bg-background"
-            value={selectedInstructor || ""}
-            onChange={(e) =>
-              onInstructorChange(e.target.value || null)
-            }
-          >
-            <option value="">All Instructors</option>
+          <Label className="text-xs font-medium mb-2 block">
+            Instructors{" "}
+            {selectedInstructors.size > 0 && (
+              <span className="text-muted-foreground font-normal">
+                ({selectedInstructors.size} selected)
+              </span>
+            )}
+          </Label>
+          <div className="flex flex-col gap-1">
             {instructors.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
+              <button
+                key={name}
+                className="flex items-center gap-2 text-xs hover:bg-accent rounded px-1 py-0.5"
+                onClick={() => onToggleInstructor(name)}
+              >
+                <span
+                  className="w-3 h-3 rounded-sm border shrink-0 flex items-center justify-center"
+                  style={{
+                    backgroundColor: selectedInstructors.has(name)
+                      ? "#6b7280"
+                      : "transparent",
+                    borderColor: "#6b7280",
+                  }}
+                >
+                  {selectedInstructors.has(name) && (
+                    <svg
+                      className="w-2 h-2 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={3}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  )}
+                </span>
+                <span
+                  className={
+                    selectedInstructors.size === 0 || selectedInstructors.has(name)
+                      ? "text-foreground"
+                      : "text-muted-foreground"
+                  }
+                >
+                  {name}
+                </span>
+              </button>
             ))}
-          </select>
+          </div>
         </div>
       )}
 

@@ -43,7 +43,7 @@ export function GraphExplorer() {
   const [loading, setLoading] = useState(true);
   const [layout, setLayout] = useState("cose");
   const [visibleTypes, setVisibleTypes] = useState<Set<string>>(new Set());
-  const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
+  const [selectedInstructors, setSelectedInstructors] = useState<Set<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
@@ -73,30 +73,35 @@ export function GraphExplorer() {
     .map((n) => n.label)
     .sort();
 
-  // Build the set of node IDs connected to the selected instructor
+  // Build the set of node IDs connected to selected instructors
   const instructorFilteredIds = (() => {
-    if (!selectedInstructor) return null; // null = show all
+    if (selectedInstructors.size === 0) return null; // empty = show all
 
-    const instructorNode = nodes.find(
-      (n) => n.type === "Instructor" && n.label === selectedInstructor
-    );
-    if (!instructorNode) return null;
+    const allConnected = new Set<string>();
 
-    // Find all nodes connected to this instructor (any edge path depth 1)
-    const connectedIds = new Set<string>([instructorNode.id]);
-    for (const edge of edges) {
-      if (edge.source_id === instructorNode.id) connectedIds.add(edge.target_id);
-      if (edge.target_id === instructorNode.id) connectedIds.add(edge.source_id);
+    for (const instructorName of selectedInstructors) {
+      const instructorNode = nodes.find(
+        (n) => n.type === "Instructor" && n.label === instructorName
+      );
+      if (!instructorNode) continue;
+
+      // Depth 1: direct connections
+      const connectedIds = new Set<string>([instructorNode.id]);
+      for (const edge of edges) {
+        if (edge.source_id === instructorNode.id) connectedIds.add(edge.target_id);
+        if (edge.target_id === instructorNode.id) connectedIds.add(edge.source_id);
+      }
+
+      // Depth 2: connections of connections
+      for (const edge of edges) {
+        if (connectedIds.has(edge.source_id)) connectedIds.add(edge.target_id);
+        if (connectedIds.has(edge.target_id)) connectedIds.add(edge.source_id);
+      }
+
+      for (const id of connectedIds) allConnected.add(id);
     }
 
-    // Also include nodes connected to those nodes (depth 2) for richer subgraph
-    const depth2Ids = new Set(connectedIds);
-    for (const edge of edges) {
-      if (connectedIds.has(edge.source_id)) depth2Ids.add(edge.target_id);
-      if (connectedIds.has(edge.target_id)) depth2Ids.add(edge.source_id);
-    }
-
-    return depth2Ids;
+    return allConnected;
   })();
 
   // Build Cytoscape elements from filtered data
@@ -132,6 +137,25 @@ export function GraphExplorer() {
   ];
 
   const nodeTypes = Array.from(new Set(nodes.map((n) => n.type))).sort();
+
+  // Re-run layout when filters change
+  useEffect(() => {
+    if (cyRef.current && !loading) {
+      cyRef.current.layout({ name: layout }).run();
+    }
+  }, [filteredNodes.length, filteredEdges.length, layout, loading]);
+
+  function handleToggleInstructor(name: string) {
+    setSelectedInstructors((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }
 
   function handleToggleType(type: string) {
     setVisibleTypes((prev) => {
@@ -215,8 +239,8 @@ export function GraphExplorer() {
           nodeCount={filteredNodes.length}
           edgeCount={filteredEdges.length}
           instructors={instructors}
-          selectedInstructor={selectedInstructor}
-          onInstructorChange={setSelectedInstructor}
+          selectedInstructors={selectedInstructors}
+          onToggleInstructor={handleToggleInstructor}
         />
 
         {selectedNode && (
