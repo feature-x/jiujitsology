@@ -24,7 +24,7 @@ export async function POST(
   // Fetch video (RLS ensures ownership)
   const { data: video, error: fetchError } = await supabase
     .from("videos")
-    .select("id, storage_path, status")
+    .select("id, storage_path, status, instructor, instructional")
     .eq("id", videoId)
     .single();
 
@@ -53,7 +53,10 @@ export async function POST(
   );
 
   // Run full pipeline in the background
-  runPipeline(supabase, user.id, video.id, video.storage_path).catch((err) => {
+  runPipeline(supabase, user.id, video.id, video.storage_path, {
+    instructor: video.instructor,
+    instructional: video.instructional,
+  }).catch((err) => {
     console.error(`Pipeline failed for video ${videoId}:`, err);
   });
 
@@ -64,7 +67,8 @@ async function runPipeline(
   supabase: Awaited<ReturnType<typeof createServerClient>>,
   userId: string,
   videoId: string,
-  storagePath: string
+  storagePath: string,
+  metadata: { instructor?: string | null; instructional?: string | null }
 ) {
   try {
     // ── Step 1: Transcribe ──────────────────────────────────────────
@@ -164,7 +168,7 @@ async function runPipeline(
       throw new Error("No ontology entries found — run seed.sql first");
     }
 
-    const extraction = await extractKnowledge(result.text, ontologyEntries);
+    const extraction = await extractKnowledge(result.text, ontologyEntries, metadata);
     console.log(
       `Extracted ${extraction.nodes.length} nodes, ${extraction.edges.length} edges for video ${videoId}`
     );

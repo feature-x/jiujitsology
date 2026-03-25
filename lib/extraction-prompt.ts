@@ -1,8 +1,10 @@
 import type { OntologyEntry } from "@/lib/ontology";
+import type { VideoMetadata } from "@/lib/extraction";
 
 export function buildExtractionPrompt(
   ontologyEntries: OntologyEntry[],
-  transcriptionText: string
+  transcriptionText: string,
+  metadata?: VideoMetadata
 ): string {
   const nodeTypes = ontologyEntries
     .filter((e) => e.category === "node_type")
@@ -53,7 +55,11 @@ ${edgeTypes}
    - For a Technique, set "belt_level" if the instructor mentions it (e.g., "fundamental", "advanced").
    - Return properties as a JSON string: e.g., {"gi_nogi": "both"} or {} if no properties apply.
 9. Be thorough — extract all techniques, positions, and concepts discussed, not just the main ones.
-
+${metadata?.instructor || metadata?.instructional ? `
+## Video Metadata
+${metadata.instructor ? `- **Instructor:** ${metadata.instructor}. Create an Instructor node with this name. Connect ALL extracted techniques, positions, submissions, sweeps, guards, passes, pins, and takedowns to this instructor via TAUGHT_BY edges.` : ""}
+${metadata.instructional ? `- **Instructional:** ${metadata.instructional}. Create an Instructional node with this name. Connect ALL extracted techniques, positions, submissions, sweeps, guards, passes, pins, and takedowns to this instructional via APPEARS_IN edges.` : ""}
+` : ""}
 ## Transcription
 
 ${transcriptionText}
