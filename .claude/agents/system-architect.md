@@ -415,7 +415,7 @@ Use the **ATAM (Architecture Tradeoff Analysis Method)**:
 
 ### Product
 
-Jiujitsology — B2C web application that builds a knowledge graph from BJJ instructional video transcriptions, enabling natural language querying and graph-based exploration.
+JiuJitsology — B2C web application that builds a knowledge graph from BJJ instructional video transcriptions, enabling natural language querying and graph-based exploration.
 
 ### Bounded Contexts
 

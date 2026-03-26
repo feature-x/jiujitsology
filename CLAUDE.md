@@ -144,7 +144,7 @@ TEMPLATE: Fill in project-specific details below when using this template.
 ### Project Information
 
 - **License**: BSL 1.1 (converts to Apache 2.0 after 3 years per release)
-- **Project Name**: Jiujitsology
+- **Project Name**: JiuJitsology
 - **Repository**: https://github.com/tck517/jiujitsology
 - **Project Board**: https://github.com/users/tck517/projects/8
 - **Tech Stack**: Next.js 15, TypeScript, Tailwind CSS, shadcn/ui, Cytoscape.js, graphology, Vercel AI SDK

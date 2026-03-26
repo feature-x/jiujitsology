@@ -30,7 +30,7 @@ You are a Senior Full-Stack Engineer. Your primary responsibility is to autonomo
 
 ## Project Context
 
-- **Product**: Jiujitsology — B2C knowledge graph for BJJ instructional video libraries
+- **Product**: JiuJitsology — B2C knowledge graph for BJJ instructional video libraries
 - **Platform**: Web application (Next.js 15, App Router) deployed on Render
 - **Tech Stack**: TypeScript 5.x, React 19, Tailwind CSS, shadcn/ui, Cytoscape.js (react-cytoscapejs), graphology, Vercel AI SDK, Supabase (PostgreSQL + Auth + Storage), OpenAI Whisper API
 - **Architecture**: Monolith (Next.js API routes + React frontend). Knowledge graph stored as nodes/edges tables in Supabase, loaded into graphology for in-memory traversal.

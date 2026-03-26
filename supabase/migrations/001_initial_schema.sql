@@ -1,4 +1,4 @@
--- Jiujitsology Initial Schema
+-- JiuJitsology Initial Schema
 -- Creates all core tables, RLS policies, and indexes.
 
 -- =============================================================================

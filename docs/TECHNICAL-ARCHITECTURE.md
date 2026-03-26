@@ -2,7 +2,7 @@
 
 ## Overview
 
-Jiujitsology is a Next.js web application that ingests BJJ instructional videos, extracts transcriptions, builds a knowledge graph from the extracted content, and exposes that graph through an interactive visualization and natural language chat interface. The system is deployed on Render with Supabase as the primary database and auth provider.
+JiuJitsology is a Next.js web application that ingests BJJ instructional videos, extracts transcriptions, builds a knowledge graph from the extracted content, and exposes that graph through an interactive visualization and natural language chat interface. The system is deployed on Render with Supabase as the primary database and auth provider.
 
 ## Technology Stack
 

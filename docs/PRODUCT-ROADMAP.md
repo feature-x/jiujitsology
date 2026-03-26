@@ -2,7 +2,7 @@
 
 ## Overview
 
-Jiujitsology will launch as an MVP within 2-3 months, focused on delivering a knowledge graph-powered learning tool for BJJ instructional video libraries. The product is budget-constrained, hosted on Render with Supabase, and targets 10 active users in the first 3 months post-launch.
+JiuJitsology will launch as an MVP within 2-3 months, focused on delivering a knowledge graph-powered learning tool for BJJ instructional video libraries. The product is budget-constrained, hosted on Render with Supabase, and targets 10 active users in the first 3 months post-launch.
 
 ## Phase 1: MVP
 

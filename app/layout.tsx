@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Jiujitsology",
+  title: "JiuJitsology",
   description:
     "Organize and query your BJJ instructional video library with a knowledge graph",
 };

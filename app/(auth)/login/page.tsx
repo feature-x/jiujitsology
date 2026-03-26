@@ -46,7 +46,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Welcome to Jiujitsology</CardTitle>
+          <CardTitle className="text-2xl">Welcome to JiuJitsology</CardTitle>
           <CardDescription>
             Enter your email to sign in or create an account. We&apos;ll
             send you a magic link — no password needed.

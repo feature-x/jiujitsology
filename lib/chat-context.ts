@@ -101,7 +101,7 @@ export async function buildChatContext(
 }
 
 export function buildSystemPrompt(context: GraphContext): string {
-  let prompt = `You are Jiujitsology, an AI assistant specialized in Brazilian Jiu-Jitsu. You help users understand and explore their BJJ instructional video library.
+  let prompt = `You are JiuJitsology, an AI assistant specialized in Brazilian Jiu-Jitsu. You help users understand and explore their BJJ instructional video library.
 
 You have access to:
 1. A knowledge graph of BJJ techniques, positions, and their relationships extracted from the user's instructional videos.

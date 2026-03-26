@@ -151,7 +151,7 @@ You are a master of:
 
 ## Project-Specific Context
 
-- **Product**: Jiujitsology — B2C knowledge graph for BJJ instructional video libraries
+- **Product**: JiuJitsology — B2C knowledge graph for BJJ instructional video libraries
 - **Architecture**: Next.js 15 (App Router) monolith on Render, Supabase (PostgreSQL + Auth + Storage)
 - **Testing Stack**: Vitest + React Testing Library (frontend), Vitest (API routes)
 - **Key Test Areas**:

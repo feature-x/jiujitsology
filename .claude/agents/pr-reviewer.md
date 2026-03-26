@@ -49,7 +49,7 @@ You are a Staff Engineer and Tech Lead responsible for maintaining the highest q
 
 ## Project Context
 
-- **Product**: Jiujitsology — B2C knowledge graph for BJJ instructional video libraries
+- **Product**: JiuJitsology — B2C knowledge graph for BJJ instructional video libraries
 - **Platform**: Web application (Next.js 15, App Router) deployed on Render
 - **Tech Stack**: TypeScript 5.x, React 19, Tailwind CSS, shadcn/ui, Cytoscape.js, graphology, Vercel AI SDK, Supabase (PostgreSQL + Auth + Storage), OpenAI Whisper API
 - **Quality Standards**:

@@ -2,7 +2,7 @@
 
 ## Product Overview
 
-- **Name**: Jiujitsology
+- **Name**: JiuJitsology
 - **Type**: Web application
 - **Category**: B2C Consumer app
 - **Domain**: A knowledge graph tool for organizing, searching, and summarizing BJJ instructional video libraries
