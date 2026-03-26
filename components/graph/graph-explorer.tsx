@@ -95,10 +95,25 @@ export function GraphExplorer() {
         if (edge.target_id === instructorNode.id) connectedIds.add(edge.source_id);
       }
 
-      // Depth 2: connections of connections
+      // Depth 2: connections of connections, but do not traverse
+      // through unselected Instructor nodes to prevent leaking their
+      // entire subgraph into the filter results.
+      const selectedInstructorIds = new Set(
+        nodes
+          .filter((n) => n.type === "Instructor" && selectedInstructors.has(n.label))
+          .map((n) => n.id)
+      );
       for (const edge of edges) {
-        if (connectedIds.has(edge.source_id)) connectedIds.add(edge.target_id);
-        if (connectedIds.has(edge.target_id)) connectedIds.add(edge.source_id);
+        if (connectedIds.has(edge.source_id)) {
+          const target = nodes.find((n) => n.id === edge.target_id);
+          if (target?.type === "Instructor" && !selectedInstructorIds.has(target.id)) continue;
+          connectedIds.add(edge.target_id);
+        }
+        if (connectedIds.has(edge.target_id)) {
+          const source = nodes.find((n) => n.id === edge.source_id);
+          if (source?.type === "Instructor" && !selectedInstructorIds.has(source.id)) continue;
+          connectedIds.add(edge.source_id);
+        }
       }
 
       for (const id of connectedIds) allConnected.add(id);
