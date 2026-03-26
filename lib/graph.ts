@@ -7,6 +7,7 @@ export interface GraphNode {
   properties: Record<string, unknown>;
   source_video_id?: string | null;
   source_video_title?: string | null;
+  source_instructional?: string | null;
 }
 
 export interface GraphEdge {

@@ -21,6 +21,7 @@ interface GraphNode {
   properties: Record<string, unknown>;
   source_video_id?: string | null;
   source_video_title?: string | null;
+  source_instructional?: string | null;
 }
 
 interface GraphEdge {
@@ -47,6 +48,7 @@ export function GraphExplorer() {
   const [layout, setLayout] = useState("cose");
   const [visibleTypes, setVisibleTypes] = useState<Set<string>>(new Set());
   const [selectedInstructors, setSelectedInstructors] = useState<Set<string>>(new Set());
+  const [selectedInstructionals, setSelectedInstructionals] = useState<Set<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
@@ -122,10 +124,27 @@ export function GraphExplorer() {
     return allConnected;
   })();
 
+  // Build instructional list from nodes within the instructor-filtered set
+  const instructionals = (() => {
+    if (selectedInstructors.size === 0) return [];
+    const set = new Set<string>();
+    for (const node of nodes) {
+      if (node.source_instructional && (!instructorFilteredIds || instructorFilteredIds.has(node.id))) {
+        set.add(node.source_instructional);
+      }
+    }
+    return Array.from(set).sort();
+  })();
+
   // Build Cytoscape elements from filtered data
   const filteredNodes = nodes.filter((n) => {
     if (!visibleTypes.has(n.type)) return false;
     if (instructorFilteredIds && !instructorFilteredIds.has(n.id)) return false;
+    // Instructional filter: if instructionals are selected, only show nodes
+    // from those instructionals (plus nodes without a source_instructional
+    // that are connected via edges to matching nodes — handled by keeping
+    // non-instructional nodes like Instructor, Position, Concept visible).
+    if (selectedInstructionals.size > 0 && n.source_instructional && !selectedInstructionals.has(n.source_instructional)) return false;
     return true;
   });
   const filteredNodeIds = new Set(filteredNodes.map((n) => n.id));
@@ -165,6 +184,21 @@ export function GraphExplorer() {
 
   function handleToggleInstructor(name: string) {
     setSelectedInstructors((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      // Clear instructional selection when instructors change —
+      // the available instructionals depend on which instructors are selected.
+      setSelectedInstructionals(new Set());
+      return next;
+    });
+  }
+
+  function handleToggleInstructional(name: string) {
+    setSelectedInstructionals((prev) => {
       const next = new Set(prev);
       if (next.has(name)) {
         next.delete(name);
@@ -260,6 +294,9 @@ export function GraphExplorer() {
           instructors={instructors}
           selectedInstructors={selectedInstructors}
           onToggleInstructor={handleToggleInstructor}
+          instructionals={instructionals}
+          selectedInstructionals={selectedInstructionals}
+          onToggleInstructional={handleToggleInstructional}
         />
 
         {selectedNode && (
