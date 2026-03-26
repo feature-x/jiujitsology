@@ -6,24 +6,31 @@ import { Button } from "@/components/ui/button";
 interface VideoPlayerProps {
   videoId: string;
   title: string;
-  startTime?: number;
+  /** Node label to search for in chunks — used to find the timestamp */
+  searchLabel?: string;
   onClose: () => void;
 }
 
 export function VideoPlayer({
   videoId,
   title,
-  startTime,
+  searchLabel,
   onClose,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [url, setUrl] = useState<string | null>(null);
+  const [startTime, setStartTime] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchSignedUrl() {
-      const response = await fetch(`/api/videos/${videoId}/signed-url`);
+      const params = new URLSearchParams();
+      if (searchLabel) params.set("label", searchLabel);
+      const qs = params.toString();
+      const response = await fetch(
+        `/api/videos/${videoId}/signed-url${qs ? `?${qs}` : ""}`
+      );
       if (!response.ok) {
         const data = await response.json();
         setError(data.error || "Failed to load video.");
@@ -32,13 +39,16 @@ export function VideoPlayer({
       }
       const data = await response.json();
       setUrl(data.url);
+      if (data.startTime != null) {
+        setStartTime(data.startTime);
+      }
       setLoading(false);
     }
     fetchSignedUrl();
-  }, [videoId]);
+  }, [videoId, searchLabel]);
 
   useEffect(() => {
-    if (url && videoRef.current && startTime) {
+    if (url && videoRef.current && startTime != null) {
       videoRef.current.currentTime = startTime;
     }
   }, [url, startTime]);
