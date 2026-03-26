@@ -98,6 +98,16 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
       return;
     }
 
+    if (!instructor.trim()) {
+      setError("Instructor is required.");
+      return;
+    }
+
+    if (!instructional.trim()) {
+      setError("Instructional is required.");
+      return;
+    }
+
     if (file.size > MAX_FILE_SIZE) {
       setError("File size exceeds 5GB limit.");
       return;
@@ -224,7 +234,7 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="instructor">Instructor</Label>
+          <Label htmlFor="instructor">Instructor <span className="text-destructive">*</span></Label>
           <Input
             id="instructor"
             type="text"
@@ -232,10 +242,11 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
             value={instructor}
             onChange={(e) => setInstructor(e.target.value)}
             disabled={uploading}
+            required
           />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="instructional">Instructional</Label>
+          <Label htmlFor="instructional">Instructional <span className="text-destructive">*</span></Label>
           <Input
             id="instructional"
             type="text"
@@ -243,6 +254,7 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
             value={instructional}
             onChange={(e) => setInstructional(e.target.value)}
             disabled={uploading}
+            required
           />
         </div>
       </div>

@@ -46,6 +46,13 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!instructor?.trim() || !instructional?.trim()) {
+    return NextResponse.json(
+      { error: "Missing required fields: instructor, instructional" },
+      { status: 400 }
+    );
+  }
+
   // Verify the storage path is scoped to this user
   if (!storage_path.startsWith(`${user.id}/`)) {
     return NextResponse.json(
