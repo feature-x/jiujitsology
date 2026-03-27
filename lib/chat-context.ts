@@ -9,8 +9,13 @@ interface ChunkResult {
   video_id: string;
 }
 
+interface CitedChunk {
+  citation: string;
+  content: string;
+}
+
 interface GraphContext {
-  relevantChunks: string[];
+  relevantChunks: CitedChunk[];
   graphSummary: string;
   ontologySummary: string;
 }
@@ -33,9 +38,35 @@ export async function buildChatContext(
     filter_user_id: userId,
   });
 
-  const relevantChunks = (chunks as ChunkResult[] || []).map(
-    (c) => c.content
-  );
+  const chunkResults = (chunks as ChunkResult[]) || [];
+
+  // Fetch video titles for the chunks
+  const videoIds = [...new Set(chunkResults.map((c) => c.video_id))];
+  const videoTitleMap = new Map<string, string>();
+
+  if (videoIds.length > 0) {
+    const { data: videos } = await supabase
+      .from("videos")
+      .select("id, title")
+      .in("id", videoIds);
+
+    for (const v of videos || []) {
+      videoTitleMap.set(v.id, v.title);
+    }
+  }
+
+  const relevantChunks: CitedChunk[] = chunkResults.map((c) => {
+    const videoTitle = videoTitleMap.get(c.video_id) || "Unknown Video";
+    const timeRange =
+      c.start_time != null && c.end_time != null
+        ? `${formatTimestamp(c.start_time)}-${formatTimestamp(c.end_time)}`
+        : "";
+    const citation = timeRange
+      ? `${videoTitle} (${timeRange})`
+      : videoTitle;
+
+    return { citation, content: c.content };
+  });
 
   // 2. Load knowledge graph summary
   const { data: nodes } = await supabase
@@ -107,7 +138,7 @@ You have access to:
 1. A knowledge graph of BJJ techniques, positions, and their relationships extracted from the user's instructional videos.
 2. Relevant transcription passages from those videos.
 
-Answer questions by combining your knowledge of BJJ with the specific content from the user's library. Cite specific techniques and relationships from the knowledge graph when relevant. If a question is about content not in the user's library, say so.
+Answer questions by combining your knowledge of BJJ with the specific content from the user's library. When your answer is based on a specific transcription passage, cite the source by its number (e.g., "according to [1]") so the user knows which video and timestamp the information comes from. If a question is about content not in the user's library, say so.
 
 Be concise and direct. Use BJJ terminology naturally.`;
 
@@ -120,8 +151,14 @@ Be concise and direct. Use BJJ terminology naturally.`;
   }
 
   if (context.relevantChunks.length > 0) {
-    prompt += `\n\n## Relevant Transcription Passages\n${context.relevantChunks.map((c, i) => `[${i + 1}] ${c}`).join("\n\n")}`;
+    prompt += `\n\n## Relevant Transcription Passages\n${context.relevantChunks.map((c, i) => `[${i + 1}] ${c.citation}: "${c.content}"`).join("\n\n")}`;
   }
 
   return prompt;
+}
+
+function formatTimestamp(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
