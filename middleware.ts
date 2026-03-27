@@ -12,9 +12,12 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization)
      * - favicon.ico (browser icon)
-     * - api/health (health check)
-     * - api/error-events (sentry self-receiver)
+     * - api/ (all API routes — they have their own auth checks returning 401 JSON)
+     *
+     * API routes are excluded to prevent the middleware auth redirect from
+     * intercepting background fetches (e.g., 5-second /api/videos poll),
+     * which caused mid-upload page redirects when the JWT cookie expired.
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/health|api/error-events).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/).*)",
   ],
 };
