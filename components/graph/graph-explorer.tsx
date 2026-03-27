@@ -64,7 +64,7 @@ export function GraphExplorer() {
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [segmentsLoading, setSegmentsLoading] = useState(false);
-  const [playingVideo, setPlayingVideo] = useState<{ id: string; title: string; label: string } | null>(null);
+  const [playingVideo, setPlayingVideo] = useState<{ id: string; title: string; label: string; startTime?: number } | null>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
   const fetchGraph = useCallback(async () => {
@@ -389,6 +389,7 @@ export function GraphExplorer() {
                           id: seg.video_id,
                           title: seg.video_title || "Video",
                           label: selectedNode.label,
+                          startTime: seg.start_time != null && seg.start_time > 0 ? seg.start_time : undefined,
                         })
                       }
                     >
@@ -467,7 +468,8 @@ export function GraphExplorer() {
         <VideoPlayer
           videoId={playingVideo.id}
           title={playingVideo.title}
-          searchLabel={playingVideo.label}
+          searchLabel={playingVideo.startTime == null ? playingVideo.label : undefined}
+          initialStartTime={playingVideo.startTime}
           onClose={() => setPlayingVideo(null)}
         />
       )}
