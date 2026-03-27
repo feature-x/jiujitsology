@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { VideoPlayer } from "@/components/video/video-player";
 
 interface GraphNode {
   id: string;
@@ -37,6 +38,7 @@ interface SelectedNode {
   type: string;
   label: string;
   properties: Record<string, unknown>;
+  source_video_id: string | null;
   source_video_title: string | null;
   edges: { relationship: string; target: string; direction: "out" | "in" }[];
 }
@@ -50,6 +52,7 @@ export function GraphExplorer() {
   const [selectedInstructors, setSelectedInstructors] = useState<Set<string>>(new Set());
   const [selectedInstructionals, setSelectedInstructionals] = useState<Set<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
+  const [playingVideo, setPlayingVideo] = useState<{ id: string; title: string; label: string } | null>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
   const fetchGraph = useCallback(async () => {
@@ -258,6 +261,7 @@ export function GraphExplorer() {
       type: node.type,
       label: node.label,
       properties: node.properties,
+      source_video_id: node.source_video_id || null,
       source_video_title: node.source_video_title || null,
       edges: nodeEdges,
     });
@@ -311,7 +315,22 @@ export function GraphExplorer() {
                   <p className="text-xs font-medium text-muted-foreground mb-1">
                     Source
                   </p>
-                  <p className="text-xs">{selectedNode.source_video_title}</p>
+                  {selectedNode.source_video_id ? (
+                    <button
+                      className="text-xs text-primary hover:underline text-left"
+                      onClick={() =>
+                        setPlayingVideo({
+                          id: selectedNode.source_video_id!,
+                          title: selectedNode.source_video_title!,
+                          label: selectedNode.label,
+                        })
+                      }
+                    >
+                      {selectedNode.source_video_title}
+                    </button>
+                  ) : (
+                    <p className="text-xs">{selectedNode.source_video_title}</p>
+                  )}
                 </div>
               )}
               {Object.keys(selectedNode.properties).length > 0 && (
@@ -368,6 +387,15 @@ export function GraphExplorer() {
           }}
         />
       </div>
+
+      {playingVideo && (
+        <VideoPlayer
+          videoId={playingVideo.id}
+          title={playingVideo.title}
+          searchLabel={playingVideo.label}
+          onClose={() => setPlayingVideo(null)}
+        />
+      )}
     </div>
   );
 }
