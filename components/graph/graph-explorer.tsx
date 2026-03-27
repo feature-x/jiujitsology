@@ -409,6 +409,14 @@ export function GraphExplorer() {
                   <p className="text-xs text-muted-foreground">Loading segments...</p>
                 </div>
               )}
+              {!segmentsLoading && segments.length === 0 && (
+                <div className="mb-3">
+                  <p className="text-xs text-muted-foreground italic">
+                    This concept was identified in the knowledge graph but
+                    couldn&apos;t be linked to a specific video timestamp.
+                  </p>
+                </div>
+              )}
               {Object.keys(selectedNode.properties).length > 0 && (
                 <div className="mb-3">
                   <p className="text-xs font-medium text-muted-foreground mb-1">
