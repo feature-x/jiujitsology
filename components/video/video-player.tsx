@@ -22,6 +22,7 @@ export function VideoPlayer({
   const [startTime, setStartTime] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [buffering, setBuffering] = useState(true);
 
   useEffect(() => {
     async function fetchSignedUrl() {
@@ -39,7 +40,7 @@ export function VideoPlayer({
       }
       const data = await response.json();
       setUrl(data.url);
-      if (data.startTime != null) {
+      if (data.startTime != null && data.startTime > 0) {
         setStartTime(data.startTime);
       }
       setLoading(false);
@@ -73,7 +74,7 @@ export function VideoPlayer({
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm text-white font-medium truncate pr-4">
             {title}
-            {startTime ? ` — ${formatTime(startTime)}` : ""}
+            {startTime != null ? ` — ${formatTime(startTime)}` : ""}
           </p>
           <Button
             variant="ghost"
@@ -84,14 +85,19 @@ export function VideoPlayer({
             Close
           </Button>
         </div>
-        <div className="bg-black rounded-lg overflow-hidden">
-          {loading && (
-            <div className="flex items-center justify-center h-64">
-              <p className="text-sm text-white/60">Loading video...</p>
+        <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+          {(loading || (url && buffering)) && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-6 w-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <p className="text-sm text-white/60">
+                  {loading ? "Loading video..." : "Buffering..."}
+                </p>
+              </div>
             </div>
           )}
           {error && (
-            <div className="flex items-center justify-center h-64">
+            <div className="absolute inset-0 flex items-center justify-center">
               <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
@@ -100,8 +106,9 @@ export function VideoPlayer({
               ref={videoRef}
               src={url}
               controls
-              className="w-full"
+              className="w-full h-full"
               controlsList="nodownload"
+              onCanPlay={() => setBuffering(false)}
             />
           )}
         </div>
