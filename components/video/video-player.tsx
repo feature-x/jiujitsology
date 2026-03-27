@@ -8,6 +8,8 @@ interface VideoPlayerProps {
   title: string;
   /** Node label to search for in chunks — used to find the timestamp */
   searchLabel?: string;
+  /** Explicit start time — skips the label search when provided */
+  initialStartTime?: number;
   onClose: () => void;
 }
 
@@ -15,6 +17,7 @@ export function VideoPlayer({
   videoId,
   title,
   searchLabel,
+  initialStartTime,
   onClose,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -40,13 +43,15 @@ export function VideoPlayer({
       }
       const data = await response.json();
       setUrl(data.url);
-      if (data.startTime != null && data.startTime > 0) {
+      if (initialStartTime != null) {
+        setStartTime(initialStartTime);
+      } else if (data.startTime != null && data.startTime > 0) {
         setStartTime(data.startTime);
       }
       setLoading(false);
     }
     fetchSignedUrl();
-  }, [videoId, searchLabel]);
+  }, [videoId, searchLabel, initialStartTime]);
 
   useEffect(() => {
     if (url && videoRef.current && startTime != null) {

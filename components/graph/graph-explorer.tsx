@@ -33,6 +33,16 @@ interface GraphEdge {
   properties: Record<string, unknown>;
 }
 
+interface Segment {
+  id: string;
+  video_id: string;
+  start_time: number | null;
+  end_time: number | null;
+  video_title: string | null;
+  instructor: string | null;
+  instructional: string | null;
+}
+
 interface SelectedNode {
   id: string;
   type: string;
@@ -52,7 +62,9 @@ export function GraphExplorer() {
   const [selectedInstructors, setSelectedInstructors] = useState<Set<string>>(new Set());
   const [selectedInstructionals, setSelectedInstructionals] = useState<Set<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
-  const [playingVideo, setPlayingVideo] = useState<{ id: string; title: string; label: string } | null>(null);
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
+  const [playingVideo, setPlayingVideo] = useState<{ id: string; title: string; label: string; startTime?: number } | null>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
   const fetchGraph = useCallback(async () => {
@@ -184,6 +196,36 @@ export function GraphExplorer() {
       cyRef.current.layout({ name: layout }).run();
     }
   }, [filteredNodes.length, filteredEdges.length, layout, loading]);
+
+  // Fetch related segments when a node is selected
+  useEffect(() => {
+    if (!selectedNode) {
+      setSegments([]);
+      return;
+    }
+
+    let cancelled = false;
+    setSegmentsLoading(true);
+
+    fetch(`/api/nodes/${selectedNode.id}/segments`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.segments) {
+          setSegments(data.segments);
+        }
+        if (!cancelled) setSegmentsLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSegments([]);
+          setSegmentsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedNode?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleToggleInstructor(name: string) {
     setSelectedInstructors((prev) => {
@@ -333,6 +375,40 @@ export function GraphExplorer() {
                   )}
                 </div>
               )}
+              {!segmentsLoading && segments.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">
+                    Related Segments ({segments.length})
+                  </p>
+                  {segments.map((seg) => (
+                    <button
+                      key={seg.id}
+                      className="block text-xs text-primary hover:underline text-left mb-0.5"
+                      onClick={() =>
+                        setPlayingVideo({
+                          id: seg.video_id,
+                          title: seg.video_title || "Video",
+                          label: selectedNode.label,
+                          startTime: seg.start_time != null && seg.start_time > 0 ? seg.start_time : undefined,
+                        })
+                      }
+                    >
+                      {seg.instructor && (
+                        <span className="text-muted-foreground">{seg.instructor} — </span>
+                      )}
+                      {seg.instructional || seg.video_title || "Video"}
+                      {seg.start_time != null && seg.start_time > 0 && (
+                        <span className="text-muted-foreground"> — {formatTime(seg.start_time)}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {segmentsLoading && (
+                <div className="mb-3">
+                  <p className="text-xs text-muted-foreground">Loading segments...</p>
+                </div>
+              )}
               {Object.keys(selectedNode.properties).length > 0 && (
                 <div className="mb-3">
                   <p className="text-xs font-medium text-muted-foreground mb-1">
@@ -392,10 +468,17 @@ export function GraphExplorer() {
         <VideoPlayer
           videoId={playingVideo.id}
           title={playingVideo.title}
-          searchLabel={playingVideo.label}
+          searchLabel={playingVideo.startTime == null ? playingVideo.label : undefined}
+          initialStartTime={playingVideo.startTime}
           onClose={() => setPlayingVideo(null)}
         />
       )}
     </div>
   );
+}
+
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
