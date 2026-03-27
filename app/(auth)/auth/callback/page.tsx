@@ -12,7 +12,10 @@ export default function AuthCallbackPage() {
 
     // Supabase JS client automatically detects the hash fragment
     // from the magic link and exchanges it for a session.
-    supabase.auth.onAuthStateChange((event) => {
+    // IMPORTANT: must unsubscribe on unmount — with the singleton client,
+    // a stale listener persists and fires router.push("/") on every
+    // token refresh, causing unexpected dashboard redirects.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") {
         router.push("/");
         router.refresh();
@@ -28,6 +31,10 @@ export default function AuthCallbackPage() {
         router.push(`/login?error=${encodeURIComponent(error)}`);
       }
     }
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [router]);
 
   return (
