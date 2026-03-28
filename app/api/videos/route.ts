@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { checkQuota } from "@/lib/quota";
 
 export async function GET() {
   const supabase = await createServerClient();
@@ -50,6 +51,20 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Missing required fields: instructor, instructional" },
       { status: 400 }
+    );
+  }
+
+  // Check ingestion quota before creating video record
+  const quota = await checkQuota(supabase, user.id, "ingest");
+  if (!quota.allowed) {
+    return NextResponse.json(
+      {
+        error: "Upload limit reached. Upgrade your plan for more capacity.",
+        used: quota.used,
+        limit: quota.limit,
+        tier: quota.tier,
+      },
+      { status: 429 }
     );
   }
 

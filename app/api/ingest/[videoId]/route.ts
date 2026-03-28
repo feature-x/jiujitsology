@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { transcribeVideo } from "@/lib/transcription";
 import { chunkSegments, embedChunks } from "@/lib/embeddings";
 import { extractKnowledge, storeExtraction } from "@/lib/extraction";
+import { checkQuota, addIngestedMinutes } from "@/lib/quota";
 
 const SIGNED_URL_EXPIRY = 3600; // 1 hour — enough for AssemblyAI to download
 
@@ -30,6 +31,20 @@ export async function POST(
 
   if (fetchError || !video) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Check ingestion quota before starting
+  const quota = await checkQuota(supabase, user.id, "ingest");
+  if (!quota.allowed) {
+    return NextResponse.json(
+      {
+        error: "Ingestion limit reached. Upgrade your plan for more capacity.",
+        used: quota.used,
+        limit: quota.limit,
+        tier: quota.tier,
+      },
+      { status: 429 }
+    );
   }
 
   // Only allow ingestion from "uploaded" or "error" status (retry)
@@ -112,6 +127,9 @@ async function runPipeline(
       `Transcription complete for video ${videoId}: ${result.durationSec.toFixed(0)}s, ` +
         `${result.segments.length} segments, ~$${((result.durationSec / 60) * 0.006).toFixed(3)} cost`
     );
+
+    // Track ingested minutes for quota enforcement
+    await addIngestedMinutes(supabase, userId, result.durationSec / 60);
 
     // ── Step 2: Chunk & Embed ───────────────────────────────────────
     const chunks = chunkSegments(result.segments);

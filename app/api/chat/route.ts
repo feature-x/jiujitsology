@@ -2,6 +2,7 @@ import { streamText, type ModelMessage } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createServerClient } from "@/lib/supabase/server";
 import { buildChatContext, buildSystemPrompt } from "@/lib/chat-context";
+import { checkQuota, incrementChatQuery } from "@/lib/quota";
 
 interface ClientMessage {
   role: string;
@@ -43,6 +44,20 @@ export async function POST(request: Request) {
 
   const coreMessages = toModelMessages(messages);
 
+  // Check chat quota before processing
+  const quota = await checkQuota(supabase, user.id, "chat");
+  if (!quota.allowed) {
+    return new Response(
+      JSON.stringify({
+        error: "Chat query limit reached",
+        used: quota.used,
+        limit: quota.limit,
+        tier: quota.tier,
+      }),
+      { status: 429, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   // Get the latest user message text for context retrieval
   const queryText =
     coreMessages
@@ -53,6 +68,10 @@ export async function POST(request: Request) {
   // Build context from knowledge graph + embeddings
   const context = await buildChatContext(supabase, user.id, queryText);
   const systemPrompt = buildSystemPrompt(context);
+
+  // Increment usage before streaming — counts the query even if the user
+  // disconnects mid-stream (the LLM call is already being made).
+  await incrementChatQuery(supabase, user.id);
 
   const result = streamText({
     model: openai("gpt-4o"),
