@@ -69,6 +69,8 @@ async function ensureUserRecords(
 
 /**
  * Check if a user is allowed to perform an action based on their tier limits.
+ * Set ENABLE_QUOTA_ENFORCEMENT=true to activate. When disabled (default),
+ * quotas are not enforced but usage is still tracked for analytics.
  */
 export async function checkQuota(
   supabase: SupabaseClient,
@@ -79,6 +81,12 @@ export async function checkQuota(
     supabase,
     userId
   );
+
+  // Skip enforcement when disabled — still auto-provisions and tracks usage
+  if (process.env.ENABLE_QUOTA_ENFORCEMENT !== "true") {
+    return { allowed: true, tier };
+  }
+
   const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
 
   if (action === "chat" && !limits.chatUnlimited) {
