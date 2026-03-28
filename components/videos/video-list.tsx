@@ -151,9 +151,13 @@ export function VideoList({ videos, onDelete, onRefresh }: VideoListProps) {
     if (!response.ok) {
       const data = await response.json();
       alert(data.error || "Failed to start ingestion.");
+      setIngesting(null);
+      return;
     }
 
-    setIngesting(null);
+    // Don't clear ingesting — keep the button disabled until the next
+    // poll/refresh updates the video status to "transcribing", at which
+    // point canIngest becomes false and the button hides entirely.
     onRefresh();
   }
 
