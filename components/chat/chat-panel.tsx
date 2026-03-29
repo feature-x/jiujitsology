@@ -4,12 +4,20 @@ import { useChat, type UIMessage } from "@ai-sdk/react";
 import { useRef, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageBubble } from "@/components/chat/message-bubble";
+import { MessageBubble, type ChatCitation } from "@/components/chat/message-bubble";
+import { VideoPlayer } from "@/components/video/video-player";
 
 export function ChatPanel() {
   const chat = useChat();
   const [input, setInput] = useState("");
+  const [citations, setCitations] = useState<ChatCitation[]>([]);
+  const [playingVideo, setPlayingVideo] = useState<{
+    id: string;
+    title: string;
+    startTime?: number;
+  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastMessageCountRef = useRef(0);
   const isLoading = chat.status === "streaming" || chat.status === "submitted";
 
   // Auto-scroll to bottom on new messages
@@ -18,6 +26,29 @@ export function ChatPanel() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [chat.messages]);
+
+  // Fetch citations when a new assistant message completes
+  useEffect(() => {
+    const messageCount = chat.messages.length;
+    const lastMessage = chat.messages[messageCount - 1];
+
+    if (
+      messageCount > lastMessageCountRef.current &&
+      lastMessage?.role === "assistant" &&
+      !isLoading
+    ) {
+      fetch("/api/chat/citations")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.citations) {
+            setCitations(data.citations);
+          }
+        })
+        .catch(() => {});
+    }
+
+    lastMessageCountRef.current = messageCount;
+  }, [chat.messages, isLoading]);
 
   function getMessageText(m: UIMessage): string {
     return (
@@ -33,8 +64,20 @@ export function ChatPanel() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+    setCitations([]); // Clear citations for new query
     chat.sendMessage({ text: input });
     setInput("");
+  }
+
+  function handleCitationClick(citation: ChatCitation) {
+    setPlayingVideo({
+      id: citation.video_id,
+      title: citation.video_title,
+      startTime:
+        citation.start_time != null && citation.start_time > 0
+          ? citation.start_time
+          : undefined,
+    });
   }
 
   return (
@@ -52,13 +95,22 @@ export function ChatPanel() {
             </div>
           </div>
         )}
-        {chat.messages.map((m) => (
-          <MessageBubble
-            key={m.id}
-            role={m.role as "user" | "assistant"}
-            content={getMessageText(m)}
-          />
-        ))}
+        {chat.messages.map((m, i) => {
+          // Only attach citations to the last assistant message
+          const isLastAssistant =
+            m.role === "assistant" &&
+            i === chat.messages.length - 1;
+
+          return (
+            <MessageBubble
+              key={m.id}
+              role={m.role as "user" | "assistant"}
+              content={getMessageText(m)}
+              citations={isLastAssistant ? citations : undefined}
+              onCitationClick={isLastAssistant ? handleCitationClick : undefined}
+            />
+          );
+        })}
         {isLoading &&
           chat.messages[chat.messages.length - 1]?.role !== "assistant" && (
             <div className="flex justify-start">
@@ -89,6 +141,16 @@ export function ChatPanel() {
           Send
         </Button>
       </form>
+
+      {/* Video player modal */}
+      {playingVideo && (
+        <VideoPlayer
+          videoId={playingVideo.id}
+          title={playingVideo.title}
+          initialStartTime={playingVideo.startTime}
+          onClose={() => setPlayingVideo(null)}
+        />
+      )}
     </div>
   );
 }

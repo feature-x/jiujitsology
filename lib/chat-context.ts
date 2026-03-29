@@ -9,9 +9,12 @@ interface ChunkResult {
   video_id: string;
 }
 
-interface CitedChunk {
+export interface CitedChunk {
   citation: string;
   content: string;
+  video_id: string;
+  video_title: string;
+  start_time: number | null;
 }
 
 interface GraphContext {
@@ -65,7 +68,13 @@ export async function buildChatContext(
       ? `${videoTitle} (${timeRange})`
       : videoTitle;
 
-    return { citation, content: c.content };
+    return {
+      citation,
+      content: c.content,
+      video_id: c.video_id,
+      video_title: videoTitle,
+      start_time: c.start_time,
+    };
   });
 
   // 2. Load knowledge graph summary

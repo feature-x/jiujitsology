@@ -3,6 +3,7 @@ import { openai } from "@ai-sdk/openai";
 import { createServerClient } from "@/lib/supabase/server";
 import { buildChatContext, buildSystemPrompt } from "@/lib/chat-context";
 import { checkQuota, incrementChatQuery } from "@/lib/quota";
+import { citationCache } from "@/lib/citation-cache";
 
 interface ClientMessage {
   role: string;
@@ -72,6 +73,16 @@ export async function POST(request: Request) {
   // Increment usage before streaming — counts the query even if the user
   // disconnects mid-stream (the LLM call is already being made).
   await incrementChatQuery(supabase, user.id);
+
+  // Cache citation metadata for the client to retrieve via GET /api/chat/citations
+  const citations = context.relevantChunks.map((c, i) => ({
+    index: i + 1,
+    video_id: c.video_id,
+    video_title: c.video_title,
+    start_time: c.start_time,
+    citation: c.citation,
+  }));
+  citationCache.set(user.id, citations);
 
   const result = streamText({
     model: openai("gpt-4o"),
