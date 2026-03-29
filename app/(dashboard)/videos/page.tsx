@@ -73,7 +73,17 @@ export default function VideosPage() {
       <Separator className="my-6" />
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading videos...</p>
+        <div className="flex flex-col gap-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-lg border bg-card p-4 animate-pulse">
+              <div className="flex items-center justify-between mb-2">
+                <div className="h-5 w-48 bg-muted rounded" />
+                <div className="h-5 w-20 bg-muted rounded" />
+              </div>
+              <div className="h-4 w-64 bg-muted rounded" />
+            </div>
+          ))}
+        </div>
       ) : (
         <VideoList videos={videos} onDelete={fetchVideos} onRefresh={fetchVideos} />
       )}
