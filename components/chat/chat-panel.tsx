@@ -27,27 +27,26 @@ export function ChatPanel() {
     }
   }, [chat.messages]);
 
-  // Fetch citations when a new assistant message completes
+  // Fetch citations when streaming completes
+  const prevLoadingRef = useRef(false);
   useEffect(() => {
-    const messageCount = chat.messages.length;
-    const lastMessage = chat.messages[messageCount - 1];
+    const wasLoading = prevLoadingRef.current;
+    prevLoadingRef.current = isLoading;
 
-    if (
-      messageCount > lastMessageCountRef.current &&
-      lastMessage?.role === "assistant" &&
-      !isLoading
-    ) {
-      fetch("/api/chat/citations")
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data?.citations) {
-            setCitations(data.citations);
-          }
-        })
-        .catch(() => {});
+    // Trigger when transitioning from loading → not loading (stream complete)
+    if (wasLoading && !isLoading) {
+      const lastMessage = chat.messages[chat.messages.length - 1];
+      if (lastMessage?.role === "assistant") {
+        fetch("/api/chat/citations")
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.citations) {
+              setCitations(data.citations);
+            }
+          })
+          .catch(() => {});
+      }
     }
-
-    lastMessageCountRef.current = messageCount;
   }, [chat.messages, isLoading]);
 
   function getMessageText(m: UIMessage): string {
