@@ -8,6 +8,7 @@
  *   npx tsx scripts/split-video.ts input.mp4 --scene-threshold 0.3 --silence-duration 2.0
  */
 
+import * as os from "os";
 import * as path from "path";
 import * as readline from "readline";
 import {
@@ -45,7 +46,10 @@ Options:
     process.exit(0);
   }
 
-  const inputPath = args[0];
+  // Resolve ~ to home directory (execFile doesn't expand shell shortcuts)
+  const inputPath = args[0].startsWith("~")
+    ? path.join(os.homedir(), args[0].slice(1))
+    : args[0];
   let outputDir = "./segments/";
   let dryRun = false;
   let sceneThreshold = 0.4;
