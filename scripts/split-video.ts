@@ -27,6 +27,7 @@ interface Args {
   dryRun: boolean;
   sceneThreshold: number;
   silenceDuration: number;
+  noiseTolerance: string;
 }
 
 function parseArgs(): Args {
@@ -41,6 +42,7 @@ Options:
   --dry-run                Show detected segments without splitting
   --scene-threshold <n>    Scene change threshold 0-1 (default: 0.4)
   --silence-duration <n>   Minimum silence duration in seconds (default: 1.5)
+  --noise-tolerance <dB>   Noise floor for silence detection (default: -30dB)
   --help                   Show this help
 `);
     process.exit(0);
@@ -54,6 +56,7 @@ Options:
   let dryRun = false;
   let sceneThreshold = 0.4;
   let silenceDuration = 1.5;
+  let noiseTolerance = "-30dB";
 
   for (let i = 1; i < args.length; i++) {
     switch (args[i]) {
@@ -69,10 +72,13 @@ Options:
       case "--silence-duration":
         silenceDuration = parseFloat(args[++i]);
         break;
+      case "--noise-tolerance":
+        noiseTolerance = args[++i];
+        break;
     }
   }
 
-  return { inputPath, outputDir, dryRun, sceneThreshold, silenceDuration };
+  return { inputPath, outputDir, dryRun, sceneThreshold, silenceDuration, noiseTolerance };
 }
 
 async function confirm(message: string): Promise<boolean> {
@@ -107,12 +113,26 @@ async function main() {
 
   // Step 3: Detect silence gaps
   console.log("Detecting silence gaps...");
-  const silenceTimestamps = await detectSilence(args.inputPath, "-30dB", args.silenceDuration);
+  const silenceTimestamps = await detectSilence(args.inputPath, args.noiseTolerance, args.silenceDuration);
   console.log(`Found ${silenceTimestamps.length} silence gaps\n`);
 
   // Step 4: Merge detections
-  const boundaries = mergeDetections(sceneTimestamps, silenceTimestamps);
+  let boundaries = mergeDetections(sceneTimestamps, silenceTimestamps);
   console.log(`Merged: ${boundaries.length} segment boundaries\n`);
+
+  // Fallback: if combined detection finds too few boundaries, use scene-only
+  if (boundaries.length < 2 && sceneTimestamps.length >= 2) {
+    console.log("Few combined boundaries found — falling back to scene detection only.\n");
+    // Filter scene changes to those with reasonable segment spacing (>60s apart)
+    const filtered: number[] = [];
+    for (const t of sceneTimestamps) {
+      if (filtered.length === 0 || t - filtered[filtered.length - 1] > 60) {
+        filtered.push(t);
+      }
+    }
+    boundaries = filtered;
+    console.log(`Scene-only: ${boundaries.length} boundaries (>60s apart)\n`);
+  }
 
   // Step 5: Build segments
   const segments = buildSegments(boundaries, duration);
