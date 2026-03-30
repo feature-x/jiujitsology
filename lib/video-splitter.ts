@@ -57,6 +57,94 @@ export async function detectSceneChanges(
 }
 
 /**
+ * Detect black frames using ffmpeg's blackdetect filter.
+ * Returns timestamps where black segments end (transition from title card to content).
+ * Most BJJ instructionals use black frames or fades between chapters.
+ */
+export async function detectBlackFrames(
+  inputPath: string,
+  minDuration: number = 0.3,
+  pixelThreshold: number = 0.1
+): Promise<number[]> {
+  const { stderr } = await exec("ffmpeg", [
+    "-i", inputPath,
+    "-vf", `blackdetect=d=${minDuration}:pix_th=${pixelThreshold}`,
+    "-an",
+    "-f", "null",
+    "-",
+  ], { maxBuffer: 50 * 1024 * 1024 });
+
+  const timestamps: number[] = [];
+  const regex = /black_end:(\d+\.?\d*)/g;
+  let match;
+  while ((match = regex.exec(stderr)) !== null) {
+    timestamps.push(parseFloat(match[1]));
+  }
+  return timestamps;
+}
+
+/**
+ * Detect freeze frames (static/title cards) using ffmpeg's freezedetect filter.
+ * Returns timestamps where freeze segments end (transition from static title to motion).
+ */
+export async function detectFreezeFrames(
+  inputPath: string,
+  noiseTolerance: number = 0.003,
+  minDuration: number = 1.0
+): Promise<number[]> {
+  const { stderr } = await exec("ffmpeg", [
+    "-i", inputPath,
+    "-vf", `freezedetect=n=${noiseTolerance}:d=${minDuration}`,
+    "-an",
+    "-f", "null",
+    "-",
+  ], { maxBuffer: 50 * 1024 * 1024 });
+
+  const timestamps: number[] = [];
+  const regex = /freeze_end:(\d+\.?\d*)/g;
+  let match;
+  while ((match = regex.exec(stderr)) !== null) {
+    timestamps.push(parseFloat(match[1]));
+  }
+  return timestamps;
+}
+
+/**
+ * Detect title card boundaries by combining black frame and freeze frame detection.
+ * Title cards typically involve: black fade → static graphic → black fade → content.
+ */
+export function mergeTitleDetections(
+  blackTimestamps: number[],
+  freezeTimestamps: number[],
+  tolerance: number = 5.0
+): number[] {
+  // If we have black frames, use them (most reliable for chapter boundaries)
+  if (blackTimestamps.length >= 2) {
+    // Deduplicate within 5 seconds
+    const deduped: number[] = [];
+    for (const t of blackTimestamps.sort((a, b) => a - b)) {
+      if (deduped.length === 0 || t - deduped[deduped.length - 1] > tolerance) {
+        deduped.push(t);
+      }
+    }
+    return deduped;
+  }
+
+  // Fall back to freeze frames if no black frames found
+  if (freezeTimestamps.length >= 2) {
+    const deduped: number[] = [];
+    for (const t of freezeTimestamps.sort((a, b) => a - b)) {
+      if (deduped.length === 0 || t - deduped[deduped.length - 1] > tolerance) {
+        deduped.push(t);
+      }
+    }
+    return deduped;
+  }
+
+  return [];
+}
+
+/**
  * Detect silence gaps using ffmpeg's silencedetect filter.
  * Returns timestamps where silence ends (i.e., start of a new segment).
  */

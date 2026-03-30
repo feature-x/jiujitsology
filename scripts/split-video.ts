@@ -13,6 +13,9 @@ import * as path from "path";
 import * as readline from "readline";
 import {
   getVideoDuration,
+  detectBlackFrames,
+  detectFreezeFrames,
+  mergeTitleDetections,
   detectSceneChanges,
   detectSilence,
   mergeDetections,
@@ -98,40 +101,52 @@ async function confirm(message: string): Promise<boolean> {
 async function main() {
   const args = parseArgs();
 
-  console.log(`\nAnalyzing: ${path.basename(args.inputPath)}`);
-  console.log(`Scene threshold: ${args.sceneThreshold}, Silence duration: ${args.silenceDuration}s\n`);
+  console.log(`\nAnalyzing: ${path.basename(args.inputPath)}\n`);
 
   // Step 1: Get duration
   console.log("Getting video duration...");
   const duration = await getVideoDuration(args.inputPath);
   console.log(`Duration: ${formatTime(duration)} (${Math.round(duration)}s)\n`);
 
-  // Step 2: Detect scene changes
-  console.log("Detecting scene changes...");
-  const sceneTimestamps = await detectSceneChanges(args.inputPath, args.sceneThreshold);
-  console.log(`Found ${sceneTimestamps.length} scene changes\n`);
+  // Step 2: Title card detection (primary method)
+  // Most BJJ instructionals separate chapters with black frames or static title graphics.
+  console.log("Detecting black frames (chapter transitions)...");
+  const blackTimestamps = await detectBlackFrames(args.inputPath);
+  console.log(`Found ${blackTimestamps.length} black frame transitions\n`);
 
-  // Step 3: Detect silence gaps
-  console.log("Detecting silence gaps...");
-  const silenceTimestamps = await detectSilence(args.inputPath, args.noiseTolerance, args.silenceDuration);
-  console.log(`Found ${silenceTimestamps.length} silence gaps\n`);
+  console.log("Detecting freeze frames (title cards)...");
+  const freezeTimestamps = await detectFreezeFrames(args.inputPath);
+  console.log(`Found ${freezeTimestamps.length} freeze frame transitions\n`);
 
-  // Step 4: Merge detections
-  let boundaries = mergeDetections(sceneTimestamps, silenceTimestamps);
-  console.log(`Merged: ${boundaries.length} segment boundaries\n`);
+  let boundaries = mergeTitleDetections(blackTimestamps, freezeTimestamps);
+  console.log(`Title card boundaries: ${boundaries.length}\n`);
 
-  // Fallback: if combined detection finds too few boundaries, use scene-only
-  if (boundaries.length < 2 && sceneTimestamps.length >= 2) {
-    console.log("Few combined boundaries found — falling back to scene detection only.\n");
-    // Filter scene changes to those with reasonable segment spacing (>60s apart)
-    const filtered: number[] = [];
-    for (const t of sceneTimestamps) {
-      if (filtered.length === 0 || t - filtered[filtered.length - 1] > 60) {
-        filtered.push(t);
+  // Fallback: if title card detection finds too few, try scene + silence
+  if (boundaries.length < 2) {
+    console.log("Few title cards found — trying scene + silence detection...\n");
+
+    console.log("Detecting scene changes...");
+    const sceneTimestamps = await detectSceneChanges(args.inputPath, args.sceneThreshold);
+    console.log(`Found ${sceneTimestamps.length} scene changes\n`);
+
+    console.log("Detecting silence gaps...");
+    const silenceTimestamps = await detectSilence(args.inputPath, args.noiseTolerance, args.silenceDuration);
+    console.log(`Found ${silenceTimestamps.length} silence gaps\n`);
+
+    boundaries = mergeDetections(sceneTimestamps, silenceTimestamps);
+    console.log(`Scene+silence boundaries: ${boundaries.length}\n`);
+
+    // Final fallback: scene-only filtered to >60s spacing
+    if (boundaries.length < 2 && sceneTimestamps.length >= 2) {
+      console.log("Falling back to scene-only detection (>60s spacing)...\n");
+      const filtered: number[] = [];
+      for (const t of sceneTimestamps) {
+        if (filtered.length === 0 || t - filtered[filtered.length - 1] > 60) {
+          filtered.push(t);
+        }
       }
+      boundaries = filtered;
     }
-    boundaries = filtered;
-    console.log(`Scene-only: ${boundaries.length} boundaries (>60s apart)\n`);
   }
 
   // Step 5: Build segments
