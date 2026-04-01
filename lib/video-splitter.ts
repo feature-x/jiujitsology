@@ -209,22 +209,24 @@ export function buildSegments(
   totalDuration: number,
   minSegmentDuration: number = 30
 ): SegmentBoundary[] {
+  // Filter out boundaries too close to the start or end of the video
+  const filtered = boundaries.filter(
+    (t) => t > minSegmentDuration && t < totalDuration - 5
+  );
+
   const segments: SegmentBoundary[] = [];
-  const times = [0, ...boundaries, totalDuration];
+  const times = [0, ...filtered, totalDuration];
 
   for (let i = 0; i < times.length - 1; i++) {
     const startTime = times[i];
     const endTime = times[i + 1];
     const duration = endTime - startTime;
 
-    // Skip very short segments (likely false positives)
-    if (duration < minSegmentDuration && i > 0 && i < times.length - 2) {
-      // Merge into previous segment
-      if (segments.length > 0) {
-        segments[segments.length - 1].endTime = endTime;
-        segments[segments.length - 1].duration =
-          endTime - segments[segments.length - 1].startTime;
-      }
+    // Skip very short segments — merge into previous
+    if (duration < minSegmentDuration && segments.length > 0) {
+      segments[segments.length - 1].endTime = endTime;
+      segments[segments.length - 1].duration =
+        endTime - segments[segments.length - 1].startTime;
       continue;
     }
 
