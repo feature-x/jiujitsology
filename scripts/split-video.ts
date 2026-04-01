@@ -43,7 +43,7 @@ function parseArgs(): Args {
 Usage: npx tsx scripts/split-video.ts <input> [options]
 
 Options:
-  --output <dir>           Output directory (default: same as input file)
+  --output <dir>           Output directory (default: {filename}_segments/ next to input)
   --dry-run                Show detected segments without splitting
   --scene-threshold <n>    Scene change threshold 0-1 (default: 0.4)
   --silence-duration <n>   Minimum silence duration in seconds (default: 1.5)
@@ -57,7 +57,8 @@ Options:
   const inputPath = args[0].startsWith("~")
     ? path.join(os.homedir(), args[0].slice(1))
     : args[0];
-  let outputDir = path.dirname(inputPath);
+  const baseName = path.basename(inputPath, path.extname(inputPath));
+  let outputDir = path.join(path.dirname(inputPath), `${baseName}_segments`);
   let dryRun = false;
   let sceneThreshold = 0.4;
   let silenceDuration = 1.5;
