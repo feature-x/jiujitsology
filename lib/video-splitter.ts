@@ -32,6 +32,45 @@ export async function getVideoDuration(inputPath: string): Promise<number> {
   return parseFloat(stdout.trim());
 }
 
+export interface ChapterInfo {
+  title: string;
+  startTime: number;
+  endTime: number;
+}
+
+/**
+ * Extract embedded chapter markers from the MP4 container via ffprobe.
+ * Returns chapters with titles if they exist, empty array otherwise.
+ */
+export async function detectChapters(inputPath: string): Promise<ChapterInfo[]> {
+  const { stdout } = await exec("ffprobe", [
+    "-v", "quiet",
+    "-show_chapters",
+    "-print_format", "json",
+    inputPath,
+  ]);
+
+  const data = JSON.parse(stdout);
+  const chapters = data.chapters || [];
+
+  return chapters.map((ch: { start_time: string; end_time: string; tags?: { title?: string } }) => ({
+    title: ch.tags?.title || "",
+    startTime: parseFloat(ch.start_time),
+    endTime: parseFloat(ch.end_time),
+  }));
+}
+
+/**
+ * Convert chapters to segment boundaries.
+ */
+export function chaptersToSegments(chapters: ChapterInfo[]): SegmentBoundary[] {
+  return chapters.map((ch) => ({
+    startTime: ch.startTime,
+    endTime: ch.endTime,
+    duration: ch.endTime - ch.startTime,
+  }));
+}
+
 /**
  * Detect scene changes using ffmpeg's scene detection filter.
  * Returns timestamps where visual transitions occur.
