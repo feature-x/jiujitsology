@@ -33,6 +33,7 @@ export async function GET(
     .select("id, video_id, start_time, end_time, videos(title, instructor, instructional)")
     .eq("user_id", user.id)
     .ilike("content", `%${node.label}%`)
+    .gt("start_time", 0)
     .order("start_time", { ascending: true })
     .limit(20);
 
