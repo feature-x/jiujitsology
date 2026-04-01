@@ -282,7 +282,8 @@ export function buildSegments(
 export async function splitVideo(
   inputPath: string,
   segments: SegmentBoundary[],
-  outputDir: string
+  outputDir: string,
+  titles?: string[]
 ): Promise<SplitResult[]> {
   const baseName = path.basename(inputPath, path.extname(inputPath));
   fs.mkdirSync(outputDir, { recursive: true });
@@ -291,8 +292,11 @@ export async function splitVideo(
 
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
-    const segNum = String(i + 1).padStart(3, "0");
-    const outputPath = path.join(outputDir, `${baseName}_segment_${segNum}.mp4`);
+    const segNum = String(i + 1).padStart(2, "0");
+    const titleSlug = titles?.[i]
+      ? `_${titles[i].replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "_").substring(0, 80)}`
+      : "";
+    const outputPath = path.join(outputDir, `${segNum}${titleSlug}.mp4`);
 
     await exec("ffmpeg", [
       "-i", inputPath,

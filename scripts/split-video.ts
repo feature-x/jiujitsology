@@ -8,10 +8,12 @@
  *   npx tsx scripts/split-video.ts input.mp4 --scene-threshold 0.3 --silence-duration 2.0
  */
 
+import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import * as readline from "readline";
 import {
+  type SegmentBoundary,
   getVideoDuration,
   detectChapters,
   chaptersToSegments,
@@ -33,6 +35,7 @@ interface Args {
   sceneThreshold: number;
   silenceDuration: number;
   noiseTolerance: string;
+  chaptersFile: string | null;
 }
 
 function parseArgs(): Args {
@@ -48,6 +51,7 @@ Options:
   --scene-threshold <n>    Scene change threshold 0-1 (default: 0.4)
   --silence-duration <n>   Minimum silence duration in seconds (default: 1.5)
   --noise-tolerance <dB>   Noise floor for silence detection (default: -30dB)
+  --chapters <file>        JSON file with chapter timestamps and titles
   --help                   Show this help
 `);
     process.exit(0);
@@ -63,6 +67,7 @@ Options:
   let sceneThreshold = 0.4;
   let silenceDuration = 1.5;
   let noiseTolerance = "-30dB";
+  let chaptersFile: string | null = null;
 
   for (let i = 1; i < args.length; i++) {
     switch (args[i]) {
@@ -81,10 +86,13 @@ Options:
       case "--noise-tolerance":
         noiseTolerance = args[++i];
         break;
+      case "--chapters":
+        chaptersFile = args[++i];
+        break;
     }
   }
 
-  return { inputPath, outputDir, dryRun, sceneThreshold, silenceDuration, noiseTolerance };
+  return { inputPath, outputDir, dryRun, sceneThreshold, silenceDuration, noiseTolerance, chaptersFile };
 }
 
 async function confirm(message: string): Promise<boolean> {
@@ -101,6 +109,45 @@ async function confirm(message: string): Promise<boolean> {
   });
 }
 
+function parseTimeString(time: string): number {
+  const parts = time.split(":").map(Number);
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0];
+}
+
+function sanitizeFilename(title: string): string {
+  return title
+    .replace(/[^a-zA-Z0-9\s-]/g, "")
+    .replace(/\s+/g, "_")
+    .substring(0, 80);
+}
+
+interface ManualChapter {
+  title: string;
+  start: string;
+}
+
+function loadChaptersFile(filePath: string, totalDuration: number): { segments: SegmentBoundary[]; titles: string[] } {
+  const raw = fs.readFileSync(filePath, "utf-8");
+  const chapters: ManualChapter[] = JSON.parse(raw);
+
+  const segments: SegmentBoundary[] = [];
+  const titles: string[] = [];
+
+  for (let i = 0; i < chapters.length; i++) {
+    const startTime = parseTimeString(chapters[i].start);
+    const endTime = i < chapters.length - 1
+      ? parseTimeString(chapters[i + 1].start)
+      : totalDuration;
+
+    segments.push({ startTime, endTime, duration: endTime - startTime });
+    titles.push(chapters[i].title);
+  }
+
+  return { segments, titles };
+}
+
 async function main() {
   const args = parseArgs();
 
@@ -111,20 +158,29 @@ async function main() {
   const duration = await getVideoDuration(args.inputPath);
   console.log(`Duration: ${formatTime(duration)} (${Math.round(duration)}s)\n`);
 
-  // Step 2: Check for embedded chapter markers (most reliable)
-  console.log("Checking for embedded chapters...");
-  const chapters = await detectChapters(args.inputPath);
+  let segments: SegmentBoundary[];
+  let titles: string[] | null = null;
 
-  let segments: ReturnType<typeof buildSegments>;
-
-  if (chapters.length >= 2) {
-    console.log(`Found ${chapters.length} embedded chapters:\n`);
-    for (const ch of chapters) {
-      console.log(`  ${formatTime(ch.startTime)} — ${formatTime(ch.endTime)}  ${ch.title}`);
-    }
-    console.log("");
-    segments = chaptersToSegments(chapters);
+  // Step 2a: Manual chapters file (highest priority)
+  if (args.chaptersFile) {
+    console.log(`Loading chapters from ${args.chaptersFile}...\n`);
+    const result = loadChaptersFile(args.chaptersFile, duration);
+    segments = result.segments;
+    titles = result.titles;
   } else {
+    // Step 2b: Check for embedded chapter markers
+    console.log("Checking for embedded chapters...");
+    const chapters = await detectChapters(args.inputPath);
+
+    if (chapters.length >= 2) {
+      console.log(`Found ${chapters.length} embedded chapters:\n`);
+      for (const ch of chapters) {
+        console.log(`  ${formatTime(ch.startTime)} — ${formatTime(ch.endTime)}  ${ch.title}`);
+      }
+      console.log("");
+      segments = chaptersToSegments(chapters);
+      titles = chapters.map((ch) => ch.title);
+    } else {
     console.log("No embedded chapters found — using visual detection.\n");
 
     // Step 3: Title card detection (black frames + freeze frames)
@@ -167,15 +223,17 @@ async function main() {
       }
     }
 
-    segments = buildSegments(boundaries, duration);
+      segments = buildSegments(boundaries, duration);
+    }
   }
 
   console.log(`Detected ${segments.length} segments:`);
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     const num = String(i + 1).padStart(3, " ");
+    const title = titles?.[i] ? `  ${titles[i]}` : "";
     console.log(
-      `  ${num}. ${formatTime(seg.startTime)} — ${formatTime(seg.endTime)}  (${formatTime(seg.duration)})`
+      `  ${num}. ${formatTime(seg.startTime)} — ${formatTime(seg.endTime)}  (${formatTime(seg.duration)})${title}`
     );
   }
 
@@ -194,7 +252,7 @@ async function main() {
   }
 
   console.log(`\nSplitting into ${args.outputDir}...\n`);
-  const results = await splitVideo(args.inputPath, segments, args.outputDir);
+  const results = await splitVideo(args.inputPath, segments, args.outputDir, titles || undefined);
 
   console.log(`\nDone! ${results.length} segments written to ${args.outputDir}`);
 }
