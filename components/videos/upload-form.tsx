@@ -205,6 +205,12 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
           throw new Error(data.error || "Failed to save video record.");
         }
 
+        // Auto-start ingestion (returns 202 immediately, pipeline runs async)
+        const videoData = await response.json();
+        if (videoData?.id) {
+          fetch(`/api/ingest/${videoData.id}`, { method: "POST" }).catch(() => {});
+        }
+
         updateFile(i, { status: "complete", progress: 100 });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Upload failed.";
