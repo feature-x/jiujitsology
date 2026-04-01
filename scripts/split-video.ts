@@ -57,10 +57,11 @@ Options:
     process.exit(0);
   }
 
-  // Resolve ~ to home directory (execFile doesn't expand shell shortcuts)
-  const inputPath = args[0].startsWith("~")
+  // Resolve paths against cwd (supports running from the video's directory)
+  const rawPath = args[0].startsWith("~")
     ? path.join(os.homedir(), args[0].slice(1))
     : args[0];
+  const inputPath = path.resolve(rawPath);
   const baseName = path.basename(inputPath, path.extname(inputPath));
   let outputDir = path.join(path.dirname(inputPath), `${baseName}_segments`);
   let dryRun = false;
@@ -72,7 +73,7 @@ Options:
   for (let i = 1; i < args.length; i++) {
     switch (args[i]) {
       case "--output":
-        outputDir = args[++i];
+        outputDir = path.resolve(args[++i]);
         break;
       case "--dry-run":
         dryRun = true;
@@ -87,7 +88,7 @@ Options:
         noiseTolerance = args[++i];
         break;
       case "--chapters":
-        chaptersFile = args[++i];
+        chaptersFile = path.resolve(args[++i]);
         break;
     }
   }
