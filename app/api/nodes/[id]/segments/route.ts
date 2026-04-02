@@ -33,7 +33,6 @@ export async function GET(
     .select("id, video_id, start_time, end_time, videos(title, instructor, instructional)")
     .eq("user_id", user.id)
     .ilike("content", `%${node.label}%`)
-    .gt("start_time", 0)
     .order("start_time", { ascending: true })
     .limit(20);
 
@@ -41,21 +40,23 @@ export async function GET(
     return NextResponse.json({ error: chunksError.message }, { status: 500 });
   }
 
-  const segments = (chunks || []).map((chunk) => {
-    const video = Array.isArray(chunk.videos)
-      ? chunk.videos[0]
-      : (chunk.videos as { title: string; instructor: string | null; instructional: string | null } | null);
+  const segments = (chunks || [])
+    .filter((chunk) => chunk.start_time != null && chunk.start_time > 5)
+    .map((chunk) => {
+      const video = Array.isArray(chunk.videos)
+        ? chunk.videos[0]
+        : (chunk.videos as { title: string; instructor: string | null; instructional: string | null } | null);
 
-    return {
-      id: chunk.id,
-      video_id: chunk.video_id,
-      start_time: chunk.start_time,
-      end_time: chunk.end_time,
-      video_title: video?.title || null,
-      instructor: video?.instructor || null,
-      instructional: video?.instructional || null,
-    };
-  });
+      return {
+        id: chunk.id,
+        video_id: chunk.video_id,
+        start_time: chunk.start_time,
+        end_time: chunk.end_time,
+        video_title: video?.title || null,
+        instructor: video?.instructor || null,
+        instructional: video?.instructional || null,
+      };
+    });
 
   return NextResponse.json({ segments });
 }
