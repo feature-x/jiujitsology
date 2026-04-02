@@ -40,21 +40,37 @@ export async function GET(
     return NextResponse.json({ error: chunksError.message }, { status: 500 });
   }
 
-  const segments = (chunks || []).map((chunk) => {
-    const video = Array.isArray(chunk.videos)
-      ? chunk.videos[0]
-      : (chunk.videos as { title: string; instructor: string | null; instructional: string | null } | null);
+  const INTRO_PATTERNS = /intro|introduction|overview|disclaimer/i;
 
-    return {
-      id: chunk.id,
-      video_id: chunk.video_id,
-      start_time: chunk.start_time,
-      end_time: chunk.end_time,
-      video_title: video?.title || null,
-      instructor: video?.instructor || null,
-      instructional: video?.instructional || null,
-    };
-  });
+  const segments = (chunks || [])
+    .filter((chunk) => {
+      // Skip chunks from the first 5 seconds (disclaimers)
+      if (chunk.start_time == null || chunk.start_time <= 5) return false;
+
+      // Skip chunks from intro/overview videos — they mention many
+      // techniques briefly without substantive instruction
+      const video = Array.isArray(chunk.videos)
+        ? chunk.videos[0]
+        : (chunk.videos as { title: string } | null);
+      if (video?.title && INTRO_PATTERNS.test(video.title)) return false;
+
+      return true;
+    })
+    .map((chunk) => {
+      const video = Array.isArray(chunk.videos)
+        ? chunk.videos[0]
+        : (chunk.videos as { title: string; instructor: string | null; instructional: string | null } | null);
+
+      return {
+        id: chunk.id,
+        video_id: chunk.video_id,
+        start_time: chunk.start_time,
+        end_time: chunk.end_time,
+        video_title: video?.title || null,
+        instructor: video?.instructor || null,
+        instructional: video?.instructional || null,
+      };
+    });
 
   return NextResponse.json({ segments });
 }

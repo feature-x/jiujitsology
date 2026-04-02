@@ -111,6 +111,7 @@ export function VideoPlayer({
               ref={videoRef}
               src={url}
               controls
+              preload="metadata"
               className="w-full h-full"
               controlsList="nodownload"
               onCanPlay={() => setBuffering(false)}
