@@ -21,11 +21,13 @@ export function VideoPlayer({
   onClose,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [buffering, setBuffering] = useState(true);
+  const [posterReady, setPosterReady] = useState(false);
 
   useEffect(() => {
     async function fetchSignedUrl() {
@@ -58,6 +60,22 @@ export function VideoPlayer({
       videoRef.current.currentTime = startTime;
     }
   }, [url, startTime]);
+
+  // Capture a poster frame when the video seeks to the start time.
+  // This shows the actual video frame while the rest of the video buffers.
+  function handleSeeked() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || posterReady) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.drawImage(video, 0, 0);
+      setPosterReady(true);
+    }
+  }
 
   // Close on Escape key
   useEffect(() => {
@@ -107,15 +125,25 @@ export function VideoPlayer({
             </div>
           )}
           {url && (
-            <video
-              ref={videoRef}
-              src={url}
-              controls
-              preload="metadata"
-              className="w-full h-full"
-              controlsList="nodownload"
-              onCanPlay={() => setBuffering(false)}
-            />
+            <>
+              <video
+                ref={videoRef}
+                src={url}
+                controls
+                preload="metadata"
+                className="w-full h-full"
+                controlsList="nodownload"
+                onCanPlay={() => setBuffering(false)}
+                onSeeked={handleSeeked}
+              />
+              {/* Poster frame — shows the captured frame while video buffers */}
+              <canvas
+                ref={canvasRef}
+                className={`absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-300 ${
+                  posterReady && buffering ? "opacity-100" : "opacity-0"
+                }`}
+              />
+            </>
           )}
         </div>
       </div>
