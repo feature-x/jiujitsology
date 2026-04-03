@@ -63,6 +63,7 @@ export function GraphExplorer() {
   const [selectedInstructionals, setSelectedInstructionals] = useState<Set<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<SelectedNode | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
+  const [showMobileControls, setShowMobileControls] = useState(false);
   const [segmentsLoading, setSegmentsLoading] = useState(false);
   const [playingVideo, setPlayingVideo] = useState<{ id: string; title: string; label: string; startTime?: number } | null>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -325,9 +326,17 @@ export function GraphExplorer() {
   }
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-10rem)]">
-      {/* Sidebar */}
-      <div className="w-56 shrink-0 overflow-y-auto">
+    <div className="flex gap-4 h-[calc(100vh-10rem)] relative">
+      {/* Mobile controls toggle */}
+      <button
+        className="md:hidden absolute top-2 left-2 z-10 bg-card border rounded-lg px-3 py-1.5 text-xs font-medium shadow-sm"
+        onClick={() => setShowMobileControls(!showMobileControls)}
+      >
+        {showMobileControls ? "Hide filters" : "Filters"}
+      </button>
+
+      {/* Sidebar — hidden on mobile, shown via toggle */}
+      <div className={`${showMobileControls ? "absolute z-20 top-10 left-2 bg-card border rounded-lg shadow-lg max-h-[70vh]" : "hidden"} md:block w-56 shrink-0 overflow-y-auto`}>
         <GraphControls
           nodeTypes={nodeTypes}
           visibleTypes={visibleTypes}
@@ -367,9 +376,9 @@ export function GraphExplorer() {
         />
       </div>
 
-      {/* Node detail panel — right column */}
+      {/* Node detail panel — right column on desktop, bottom overlay on mobile */}
       {selectedNode && (
-        <div className="w-64 shrink-0 overflow-y-auto">
+        <div className="fixed bottom-0 left-0 right-0 z-20 max-h-[50vh] md:static md:max-h-none md:z-auto w-full md:w-64 shrink-0 overflow-y-auto bg-background md:bg-transparent border-t md:border-t-0 shadow-lg md:shadow-none">
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>{selectedNode.type}</CardDescription>
