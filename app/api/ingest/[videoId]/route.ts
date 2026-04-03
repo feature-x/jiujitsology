@@ -177,7 +177,10 @@ async function runPipeline(
       `Embedding complete for video ${videoId}: ${embeddedChunks.length} chunks stored`
     );
 
-    // ── Step 3: Knowledge Extraction ────────────────────────────────
+    // ── Step 3: Knowledge Extraction (per-instructional) ─────────────
+    // Gather all transcriptions for the same instructional to give
+    // the LLM full cross-segment context. This produces better
+    // relationships and fewer duplicate nodes than per-video extraction.
     const { data: ontologyEntries } = await supabase
       .from("ontology_entries")
       .select("*");
@@ -186,14 +189,48 @@ async function runPipeline(
       throw new Error("No ontology entries found — run seed.sql first");
     }
 
-    const extraction = await extractKnowledge(result.text, ontologyEntries, metadata);
+    // Find all videos in the same instructional
+    let siblingVideoIds = [videoId];
+    let combinedText = result.text;
+
+    if (metadata?.instructor && metadata?.instructional) {
+      const { data: siblings } = await supabase
+        .from("videos")
+        .select("id, title, transcriptions(text)")
+        .eq("user_id", userId)
+        .eq("instructor", metadata.instructor)
+        .eq("instructional", metadata.instructional)
+        .order("title", { ascending: true });
+
+      if (siblings && siblings.length > 1) {
+        siblingVideoIds = siblings.map((s) => s.id);
+        combinedText = siblings
+          .map((s) => {
+            const tx = Array.isArray(s.transcriptions)
+              ? s.transcriptions[0]
+              : (s.transcriptions as { text: string } | null);
+            return tx?.text
+              ? `[Segment: ${s.title}]\n${tx.text}`
+              : null;
+          })
+          .filter(Boolean)
+          .join("\n\n---\n\n");
+
+        console.log(
+          `Combined ${siblings.length} segments for "${metadata.instructor} / ${metadata.instructional}" (${combinedText.length} chars)`
+        );
+      }
+    }
+
+    const extraction = await extractKnowledge(combinedText, ontologyEntries, metadata);
     console.log(
-      `Extracted ${extraction.nodes.length} nodes, ${extraction.edges.length} edges for video ${videoId}`
+      `Extracted ${extraction.nodes.length} nodes, ${extraction.edges.length} edges for instructional`
     );
 
-    const stats = await storeExtraction(supabase, userId, videoId, extraction);
+    // Clear previous extraction for ALL sibling videos, then store new
+    const stats = await storeExtraction(supabase, userId, videoId, extraction, siblingVideoIds);
     console.log(
-      `Stored extraction for video ${videoId}: ${stats.nodesCreated} new nodes, ` +
+      `Stored extraction: ${stats.nodesCreated} new nodes, ` +
         `${stats.edgesCreated} edges, ${stats.totalNodes} total nodes`
     );
 

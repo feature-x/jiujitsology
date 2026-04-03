@@ -107,11 +107,15 @@ export async function storeExtraction(
   supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createServerClient>>,
   userId: string,
   videoId: string,
-  extraction: ExtractionResult
+  extraction: ExtractionResult,
+  cleanupVideoIds?: string[]
 ) {
-  // Delete previous extraction for this video (idempotent re-run)
-  await supabase.from("edges").delete().eq("source_video_id", videoId);
-  await supabase.from("nodes").delete().eq("source_video_id", videoId);
+  // Delete previous extraction for all sibling videos (per-instructional re-run)
+  const idsToClean = cleanupVideoIds || [videoId];
+  for (const id of idsToClean) {
+    await supabase.from("edges").delete().eq("source_video_id", id);
+    await supabase.from("nodes").delete().eq("source_video_id", id);
+  }
 
   // Build a map of label → node ID (including existing nodes for this user)
   const nodeIdMap = new Map<string, string>();
